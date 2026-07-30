@@ -2,17 +2,15 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
 const Dashboard = ({ setIsAuthenticated }) => {
-  const [activeTab, setActiveTab] = useState('compose'); 
+  const [activeTab, setActiveTab] = useState('compose'); // 'compose', 'history', 'settings'
   const [content, setContent] = useState('');
   const [platform, setPlatform] = useState('twitter');
   const [mediaPreview, setMediaPreview] = useState(null);
   
-  // AI States
   const [showAI, setShowAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // CRUD States
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
   
@@ -20,6 +18,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
 
+  const [userProfile, setUserProfile] = useState(null);
   const [linkedAccounts, setLinkedAccounts] = useState({
     twitter: false,
     linkedin: false,
@@ -40,7 +39,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const fetchUserData = async () => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
-      if (res.data.success) setLinkedAccounts(res.data.data.linkedAccounts);
+      if (res.data.success) {
+        setLinkedAccounts(res.data.data.linkedAccounts);
+        setUserProfile(res.data.data);
+      }
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
     }
@@ -102,6 +104,17 @@ const Dashboard = ({ setIsAuthenticated }) => {
     } catch (error) {
       setStatus({ type: 'error', message: 'Failed to delete post.' });
     } finally {
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("CRITICAL WARNING: This will permanently delete your account and wipe all your deployment history from the database. This action cannot be undone. Proceed?")) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
+      handleLogout();
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Failed to delete account.' });
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
     }
   };
@@ -178,19 +191,24 @@ const Dashboard = ({ setIsAuthenticated }) => {
             onClick={() => { setActiveTab('compose'); resetComposer(); }}
             className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'compose' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
             Composer {isEditing && <span className="ml-auto w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>}
           </button>
+          
           <button 
             onClick={() => setActiveTab('history')}
             className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'history' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Post History
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'settings' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Account Settings
           </button>
         </nav>
 
@@ -209,18 +227,12 @@ const Dashboard = ({ setIsAuthenticated }) => {
             ))}
           </div>
         </div>
-        
-        <div className="p-4 border-t border-zinc-800/60">
-          <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-sm text-zinc-500 hover:text-red-400 transition-colors">
-            LOG OUT
-          </button>
-        </div>
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="md:hidden h-16 border-b border-zinc-800/60 flex items-center justify-between px-6">
           <h1 className="text-sm font-bold text-zinc-100 tracking-wide">POST_COMPOSER</h1>
-          <button onClick={handleLogout} className="text-xs text-zinc-500 hover:text-red-400">Logout</button>
+          <button onClick={() => setActiveTab('settings')} className="text-xs text-zinc-500 hover:text-zinc-300">Settings</button>
         </header>
 
         <div className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto">
@@ -230,7 +242,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
             </div>
           )}
 
-          {activeTab === 'compose' ? (
+          {activeTab === 'compose' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-12rem)] animate-in fade-in duration-300">
               <section className="lg:col-span-7 flex flex-col gap-4">
                 <div className="flex items-center justify-between mb-2">
@@ -253,7 +265,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
                 <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col shadow-lg shadow-black/50 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all">
                   
-                  {/* AI Generation Ribbon */}
                   {showAI && (
                     <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-b border-indigo-500/20 p-4 animate-in slide-in-from-top-2">
                       <div className="flex gap-2">
@@ -269,11 +280,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                           disabled={isGenerating || !aiPrompt}
                           className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
                         >
-                          {isGenerating ? (
-                            <span className="animate-pulse">Generating...</span>
-                          ) : (
-                            <>✨ Generate</>
-                          )}
+                          {isGenerating ? <span className="animate-pulse">Generating...</span> : <>✨ Generate</>}
                         </button>
                       </div>
                     </div>
@@ -327,10 +334,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
                     <div className="flex items-center gap-3">
                       {isEditing && (
-                        <button 
-                          onClick={resetComposer}
-                          className="text-zinc-500 hover:text-zinc-300 text-sm font-medium px-4 py-2 transition-colors"
-                        >
+                        <button onClick={resetComposer} className="text-zinc-500 hover:text-zinc-300 text-sm font-medium px-4 py-2 transition-colors">
                           Cancel
                         </button>
                       )}
@@ -376,8 +380,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 </div>
               </section>
             </div>
-          ) : (
-            
+          )}
+
+          {activeTab === 'history' && (
             <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-semibold text-zinc-100">Post History</h2>
@@ -404,24 +409,14 @@ const Dashboard = ({ setIsAuthenticated }) => {
                             <td className="px-6 py-4 capitalize font-medium text-zinc-300">{post.platform}</td>
                             <td className="px-6 py-4 max-w-xs truncate text-zinc-400">{post.content || <span className="italic text-zinc-600">Media only</span>}</td>
                             <td className="px-6 py-4">
-                              {post.media ? (
-                                <img src={post.media} alt="Thumb" className="h-8 w-8 object-cover rounded border border-zinc-700" />
-                              ) : '-'}
+                              {post.media ? <img src={post.media} alt="Thumb" className="h-8 w-8 object-cover rounded border border-zinc-700" /> : '-'}
                             </td>
                             <td className="px-6 py-4 text-right">
                               <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button 
-                                  onClick={() => initiateEdit(post)}
-                                  className="text-zinc-500 hover:text-indigo-400 transition-colors"
-                                  title="Edit Post"
-                                >
+                                <button onClick={() => initiateEdit(post)} className="text-zinc-500 hover:text-indigo-400 transition-colors" title="Edit Post">
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                                 </button>
-                                <button 
-                                  onClick={() => handleDelete(post._id)}
-                                  className="text-zinc-500 hover:text-red-400 transition-colors"
-                                  title="Delete Post"
-                                >
+                                <button onClick={() => handleDelete(post._id)} className="text-zinc-500 hover:text-red-400 transition-colors" title="Delete Post">
                                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                                 </button>
                               </div>
@@ -435,6 +430,63 @@ const Dashboard = ({ setIsAuthenticated }) => {
               </div>
             </div>
           )}
+
+          {activeTab === 'settings' && (
+            <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold text-zinc-100">Account Settings</h2>
+                <p className="text-sm text-zinc-500 mt-1">Manage your profile, linked accounts, and session data.</p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Profile Information */}
+                <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-1">Username</label>
+                      <div className="bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm">
+                        {userProfile?.username || 'Loading...'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-zinc-500 mb-1">Email Address</label>
+                      <div className="bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm">
+                        {userProfile?.email || 'Loading...'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Session Actions */}
+                <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Session</h3>
+                  <button 
+                    onClick={handleLogout} 
+                    className="w-full bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors text-left flex items-center justify-between"
+                  >
+                    Log Out of Current Session
+                    <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                  </button>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="bg-red-950/10 border border-red-900/30 rounded-xl overflow-hidden shadow-lg p-6">
+                  <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</h3>
+                  <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                    Permanently remove your account and all associated post data. This action is irreversible. 
+                  </p>
+                  <button 
+                    onClick={handleDeleteAccount}
+                    className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-semibold text-sm px-6 py-2.5 rounded-lg transition-all w-full md:w-auto"
+                  >
+                    Delete Account
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
     </div>

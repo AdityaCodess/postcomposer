@@ -5,7 +5,8 @@ const {
   getPosts, 
   createPost, 
   toggleConnection, 
-  getMe, 
+  getMe,
+  deleteAccount, 
   updatePost, 
   deletePost,
   generateAIPost
@@ -22,8 +23,12 @@ router.route('/')
 
 // Custom Routes
 router.post('/connections', toggleConnection);
-router.get('/me', getMe);
-router.post('/generate', generateAIPost); // 🚀 AI Endpoint mounted here
+router.post('/generate', generateAIPost);
+
+// User Profile & Account Management
+router.route('/me')
+  .get(getMe)
+  .delete(deleteAccount);
 
 // ID-specific routes for CRUD
 router.route('/:id')
