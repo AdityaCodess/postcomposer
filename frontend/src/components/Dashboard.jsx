@@ -6,9 +6,18 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [content, setContent] = useState('');
   const [platform, setPlatform] = useState('twitter');
   const [mediaPreview, setMediaPreview] = useState(null);
+  
+  // AI States
+  const [showAI, setShowAI] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // CRUD States
+  const [isEditing, setIsEditing] = useState(false);
+  const [editId, setEditId] = useState(null);
+  
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
-  
   const fileInputRef = useRef(null);
 
   const [linkedAccounts, setLinkedAccounts] = useState({
@@ -19,7 +28,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const [postHistory, setPostHistory] = useState([]);
 
-  // Fetch initial data on load
   useEffect(() => {
     fetchUserData();
     fetchPosts();
@@ -32,9 +40,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const fetchUserData = async () => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
-      if (res.data.success) {
-        setLinkedAccounts(res.data.data.linkedAccounts);
-      }
+      if (res.data.success) setLinkedAccounts(res.data.data.linkedAccounts);
     } catch (err) {
       if (err.response?.status === 401) handleLogout();
     }
@@ -43,9 +49,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const fetchPosts = async () => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts`, getAuthConfig());
-      if (res.data.success) {
-        setPostHistory(res.data.data);
-      }
+      if (res.data.success) setPostHistory(res.data.data);
     } catch (err) {
       console.error('Failed to fetch history');
     }
@@ -56,14 +60,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
-  // Convert uploaded image to Base64
   const handleMediaUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setMediaPreview(reader.result); // Base64 string
-      };
+      reader.onloadend = () => setMediaPreview(reader.result); 
       reader.readAsDataURL(file);
     }
   };
@@ -73,34 +74,79 @@ const Dashboard = ({ setIsAuthenticated }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const handleDeploy = async (e) => {
+  const resetComposer = () => {
+    setContent('');
+    setPlatform('twitter');
+    clearMedia();
+    setIsEditing(false);
+    setEditId(null);
+    setShowAI(false);
+    setAiPrompt('');
+  };
+
+  const initiateEdit = (post) => {
+    setContent(post.content || '');
+    setPlatform(post.platform);
+    setMediaPreview(post.media || null);
+    setIsEditing(true);
+    setEditId(post._id);
+    setActiveTab('compose');
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/${id}`, getAuthConfig());
+      setStatus({ type: 'success', message: 'Post deleted successfully.' });
+      fetchPosts(); 
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Failed to delete post.' });
+    } finally {
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+    }
+  };
+
+  const handlePublish = async (e) => {
     e.preventDefault();
-    if (!linkedAccounts[platform]) {
-      return setStatus({ type: 'error', message: `Connect ${platform} before deploying.` });
-    }
-    if (!content && !mediaPreview) {
-      return setStatus({ type: 'error', message: 'Post requires content or media.' });
-    }
+    if (!linkedAccounts[platform]) return setStatus({ type: 'error', message: `Connect ${platform} before publishing.` });
+    if (!content && !mediaPreview) return setStatus({ type: 'error', message: 'Post requires content or media.' });
     
     setIsLoading(true);
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/posts`, {
-        platform,
-        content,
-        media: mediaPreview
-      }, getAuthConfig());
-
-      setStatus({ type: 'success', message: 'Deployment successful.' });
-      
-      // Refresh history and reset form
+      const payload = { platform, content, media: mediaPreview };
+      if (isEditing) {
+        await axios.put(`${import.meta.env.VITE_API_URL}/posts/${editId}`, payload, getAuthConfig());
+        setStatus({ type: 'success', message: 'Post updated successfully.' });
+      } else {
+        await axios.post(`${import.meta.env.VITE_API_URL}/posts`, payload, getAuthConfig());
+        setStatus({ type: 'success', message: 'Post published successfully.' });
+      }
       fetchPosts();
-      setContent('');
-      clearMedia();
+      resetComposer();
       setActiveTab('history');
     } catch (error) {
-      setStatus({ type: 'error', message: 'Deployment failed.' });
+      setStatus({ type: 'error', message: `Post ${isEditing ? 'update' : 'creation'} failed.` });
     } finally {
       setIsLoading(false);
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+    }
+  };
+
+  const handleAIGenerate = async () => {
+    if (!aiPrompt) return setStatus({ type: 'error', message: 'Please enter a topic for the AI.' });
+    
+    setIsGenerating(true);
+    try {
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/generate`, { platform, topic: aiPrompt }, getAuthConfig());
+      if (res.data.success) {
+        setContent(res.data.data);
+        setShowAI(false);
+        setAiPrompt('');
+      }
+    } catch (error) {
+      setStatus({ type: 'error', message: 'AI Generation failed. Check your API key.' });
+    } finally {
+      setIsGenerating(false);
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
     }
   };
@@ -108,9 +154,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const toggleConnection = async (plat) => {
     try {
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/connections`, { platform: plat }, getAuthConfig());
-      if (res.data.success) {
-        setLinkedAccounts(res.data.data);
-      }
+      if (res.data.success) setLinkedAccounts(res.data.data);
     } catch (error) {
       setStatus({ type: 'error', message: 'Failed to update connection.' });
     }
@@ -119,7 +163,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
       
-      {/* Left Sidebar */}
       <aside className="w-64 border-r border-zinc-800/60 bg-[#0A0A0A] flex flex-col hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-zinc-800/60">
           <div className="w-6 h-6 bg-zinc-100 rounded-md flex items-center justify-center mr-3 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
@@ -132,13 +175,13 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
         <nav className="flex-1 px-4 py-6 space-y-2">
           <button 
-            onClick={() => setActiveTab('compose')}
+            onClick={() => { setActiveTab('compose'); resetComposer(); }}
             className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'compose' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-            Composer
+            Composer {isEditing && <span className="ml-auto w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>}
           </button>
           <button 
             onClick={() => setActiveTab('history')}
@@ -147,7 +190,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Deployment History
+            Post History
           </button>
         </nav>
 
@@ -169,12 +212,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
         
         <div className="p-4 border-t border-zinc-800/60">
           <button onClick={handleLogout} className="w-full text-left px-3 py-2 text-sm text-zinc-500 hover:text-red-400 transition-colors">
-            Terminate Session
+            LOG OUT
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="md:hidden h-16 border-b border-zinc-800/60 flex items-center justify-between px-6">
           <h1 className="text-sm font-bold text-zinc-100 tracking-wide">POST_COMPOSER</h1>
@@ -189,10 +231,15 @@ const Dashboard = ({ setIsAuthenticated }) => {
           )}
 
           {activeTab === 'compose' ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-12rem)]">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-12rem)] animate-in fade-in duration-300">
               <section className="lg:col-span-7 flex flex-col gap-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-semibold text-zinc-100">Draft Sequence</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-semibold text-zinc-100">{isEditing ? 'Edit Post' : 'Create Post'}</h2>
+                    {isEditing && (
+                      <span className="text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 px-2 py-0.5 rounded-full">EDIT MODE</span>
+                    )}
+                  </div>
                   <select 
                     value={platform} 
                     onChange={(e) => setPlatform(e.target.value)}
@@ -204,65 +251,106 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </select>
                 </div>
 
-                <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col shadow-lg shadow-black/50 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600">
+                <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col shadow-lg shadow-black/50 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all">
+                  
+                  {/* AI Generation Ribbon */}
+                  {showAI && (
+                    <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-b border-indigo-500/20 p-4 animate-in slide-in-from-top-2">
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder={`What should we write about for ${platform}?`}
+                          className="flex-1 bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60"
+                        />
+                        <button 
+                          onClick={handleAIGenerate}
+                          disabled={isGenerating || !aiPrompt}
+                          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                        >
+                          {isGenerating ? (
+                            <span className="animate-pulse">Generating...</span>
+                          ) : (
+                            <>✨ Generate</>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <textarea
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    placeholder="Initialize broadcast payload..."
+                    placeholder="What do you want to share?"
                     className="flex-1 w-full bg-transparent text-zinc-200 placeholder-zinc-600 resize-none focus:outline-none p-6 text-base leading-relaxed"
                     maxLength={2200}
                   />
                   
                   {mediaPreview && (
                     <div className="px-6 pb-4">
-                      <div className="relative inline-block border border-zinc-800 rounded-lg overflow-hidden group">
+                      <div className="relative inline-block border border-zinc-800 rounded-lg overflow-hidden group shadow-lg">
                         <img src={mediaPreview} alt="Upload preview" className="h-32 w-auto object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
                         <button 
                           onClick={clearMedia}
                           className="absolute top-2 right-2 bg-black/60 hover:bg-red-500/80 text-white rounded-full p-1.5 backdrop-blur-md transition-colors"
                         >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                       </div>
                     </div>
                   )}
 
                   <div className="px-4 py-3 border-t border-zinc-800/80 bg-[#0A0A0A]/50 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
                       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
                       <button 
                         onClick={() => fileInputRef.current?.click()}
                         className="text-zinc-500 hover:text-zinc-200 p-2 rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 text-sm"
+                        title="Attach Media"
                       >
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="hidden sm:inline">Attach</span>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </button>
+
+                      <button 
+                        onClick={() => setShowAI(!showAI)}
+                        className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${showAI ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800'}`}
+                        title="Auto-Generate with AI"
+                      >
+                        ✨ <span className="hidden sm:inline font-medium">Auto-Generate</span>
                       </button>
                       
-                      <span className="text-xs font-mono text-zinc-600">
+                      <span className="text-xs font-mono text-zinc-600 ml-2">
                         <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
                       </span>
                     </div>
 
-                    <button 
-                      onClick={handleDeploy}
-                      disabled={isLoading}
-                      className="bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50"
-                    >
-                      {isLoading ? 'Deploying...' : 'Deploy'}
-                    </button>
+                    <div className="flex items-center gap-3">
+                      {isEditing && (
+                        <button 
+                          onClick={resetComposer}
+                          className="text-zinc-500 hover:text-zinc-300 text-sm font-medium px-4 py-2 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button 
+                        onClick={handlePublish}
+                        disabled={isLoading}
+                        className={`font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 ${isEditing ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-zinc-100 hover:bg-white text-zinc-950'}`}
+                      >
+                        {isLoading ? 'Publishing...' : isEditing ? 'Update Post' : 'Publish'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </section>
 
               <section className="lg:col-span-5 flex flex-col gap-4">
-                <h2 className="text-lg font-semibold text-zinc-100">Live Render</h2>
+                <h2 className="text-lg font-semibold text-zinc-100">Live Preview</h2>
                 <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg shadow-black/50 p-6 flex flex-col relative">
                   <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none"></div>
-                  <div className="relative z-10 w-full max-w-sm mx-auto bg-[#0A0A0A] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden mt-4">
+                  <div className="relative z-10 w-full max-w-sm mx-auto bg-[#0A0A0A] border border-zinc-800 rounded-xl shadow-2xl overflow-hidden mt-4 transition-all">
                     <div className="p-4 flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-700 p-[1px]">
                         <div className="w-full h-full bg-[#111] rounded-full flex items-center justify-center">
@@ -276,7 +364,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     </div>
                     <div className="px-4 pb-4">
                       <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words ${content ? 'text-zinc-300' : 'text-zinc-600 italic'}`}>
-                        {content || "Payload render preview..."}
+                        {content || "Your post preview will appear here..."}
                       </p>
                     </div>
                     {mediaPreview && (
@@ -289,9 +377,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
               </section>
             </div>
           ) : (
+            
             <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold text-zinc-100">Deployment History</h2>
+                <h2 className="text-xl font-semibold text-zinc-100">Post History</h2>
               </div>
               <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg shadow-black/50">
                 <div className="overflow-x-auto">
@@ -302,15 +391,15 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         <th className="px-6 py-4 font-medium">Platform</th>
                         <th className="px-6 py-4 font-medium">Content Snippet</th>
                         <th className="px-6 py-4 font-medium">Media</th>
-                        <th className="px-6 py-4 font-medium">Status</th>
+                        <th className="px-6 py-4 font-medium text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800/60">
                       {postHistory.length === 0 ? (
-                        <tr><td colSpan="5" className="px-6 py-8 text-center text-zinc-600">No deployments found.</td></tr>
+                        <tr><td colSpan="5" className="px-6 py-8 text-center text-zinc-600">No posts found.</td></tr>
                       ) : (
                         postHistory.map((post) => (
-                          <tr key={post._id} className="hover:bg-zinc-900/30 transition-colors group">
+                          <tr key={post._id} className="hover:bg-zinc-900/40 transition-colors group">
                             <td className="px-6 py-4 whitespace-nowrap">{new Date(post.createdAt).toLocaleDateString()}</td>
                             <td className="px-6 py-4 capitalize font-medium text-zinc-300">{post.platform}</td>
                             <td className="px-6 py-4 max-w-xs truncate text-zinc-400">{post.content || <span className="italic text-zinc-600">Media only</span>}</td>
@@ -319,15 +408,23 @@ const Dashboard = ({ setIsAuthenticated }) => {
                                 <img src={post.media} alt="Thumb" className="h-8 w-8 object-cover rounded border border-zinc-700" />
                               ) : '-'}
                             </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${
-                                post.status === 'published' 
-                                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
-                                  : 'bg-red-500/10 text-red-400 border-red-500/20'
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${post.status === 'published' ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
-                                {post.status}
-                              </span>
+                            <td className="px-6 py-4 text-right">
+                              <div className="flex items-center justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                  onClick={() => initiateEdit(post)}
+                                  className="text-zinc-500 hover:text-indigo-400 transition-colors"
+                                  title="Edit Post"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                </button>
+                                <button 
+                                  onClick={() => handleDelete(post._id)}
+                                  className="text-zinc-500 hover:text-red-400 transition-colors"
+                                  title="Delete Post"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))

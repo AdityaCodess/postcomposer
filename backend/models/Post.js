@@ -15,7 +15,7 @@ const postSchema = new mongoose.Schema({
     type: String,
   },
   media: {
-    type: String, // We will store the image as a Base64 string for now
+    type: String,
   },
   status: {
     type: String,

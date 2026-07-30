@@ -10,11 +10,9 @@ const postRoutes = require('./routes/postRoutes');
 const app = express();
 
 // Standard Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' })); // Increased limit to handle Base64 image uploads
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cors());
-
-// (Removed xss-clean because it breaks on modern Node versions)
 
 // Routes
 app.use('/api/auth', authRoutes);

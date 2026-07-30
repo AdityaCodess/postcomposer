@@ -1,13 +1,33 @@
 const express = require('express');
 const router = express.Router();
-const { getPosts, createPost, toggleConnection, getMe } = require('../controllers/postController');
+
+const { 
+  getPosts, 
+  createPost, 
+  toggleConnection, 
+  getMe, 
+  updatePost, 
+  deletePost,
+  generateAIPost
+} = require('../controllers/postController');
+
 const { protect } = require('../middleware/authMiddleware');
 
-// All post routes require the user to be logged in
 router.use(protect); 
 
-router.route('/').get(getPosts).post(createPost);
+// Base Routes
+router.route('/')
+  .get(getPosts)
+  .post(createPost);
+
+// Custom Routes
 router.post('/connections', toggleConnection);
 router.get('/me', getMe);
+router.post('/generate', generateAIPost); // 🚀 AI Endpoint mounted here
+
+// ID-specific routes for CRUD
+router.route('/:id')
+  .put(updatePost)
+  .delete(deletePost);
 
 module.exports = router;
