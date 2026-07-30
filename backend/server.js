@@ -8,6 +8,10 @@ const authRoutes = require('./routes/authRoutes');
 const postRoutes = require('./routes/postRoutes'); 
 
 const app = express();
+app.use(cors({
+  origin: '*', // Or replace with your Vercel frontend URL once deployed
+  credentials: true
+}));
 
 // Standard Middleware
 app.use(express.json({ limit: '10mb' })); // Increased limit to handle Base64 image uploads
@@ -17,6 +21,7 @@ app.use(cors());
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/posts', postRoutes);
+
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI)
