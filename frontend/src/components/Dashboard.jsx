@@ -177,13 +177,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
       
       <aside className="w-64 border-r border-zinc-800/60 bg-[#0A0A0A] flex flex-col hidden md:flex">
-        <div className="h-16 flex items-center px-6 border-b border-zinc-800/60">
-          <div className="w-6 h-6 bg-zinc-100 rounded-md flex items-center justify-center mr-3 shadow-[0_0_15px_rgba(255,255,255,0.1)]">
-            <svg className="w-4 h-4 text-zinc-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h1 className="text-sm font-bold text-zinc-100 tracking-wide">POST_COMPOSER</h1>
+        <div className="h-16 flex items-center px-6 border-b border-zinc-800/60 gap-3">
+          <img src="/postifye.svg" alt="Postifye Logo" className="h-6 w-auto" />
+          <h1 className="text-sm font-bold text-zinc-100 tracking-wide uppercase">POSTIFYE</h1>
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-2">
@@ -231,7 +227,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="md:hidden h-16 border-b border-zinc-800/60 flex items-center justify-between px-6">
-          <h1 className="text-sm font-bold text-zinc-100 tracking-wide">POST_COMPOSER</h1>
+          <div className="flex items-center gap-3">
+            <img src="/postifye.svg" alt="Postifye Logo" className="h-6 w-auto" />
+            <h1 className="text-sm font-bold text-zinc-100 tracking-wide uppercase">POSTIFYE</h1>
+          </div>
           <button onClick={() => setActiveTab('settings')} className="text-xs text-zinc-500 hover:text-zinc-300">Settings</button>
         </header>
 
