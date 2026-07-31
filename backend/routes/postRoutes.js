@@ -4,7 +4,9 @@ const router = express.Router();
 const { 
   getPosts, 
   createPost, 
-  toggleConnection, 
+  linkConnection,
+  twitterCallback, 
+  disconnectConnection,
   getMe,
   deleteAccount, 
   updatePost, 
@@ -14,25 +16,29 @@ const {
 
 const { protect } = require('../middleware/authMiddleware');
 
-router.use(protect); 
-
 // Base Routes
 router.route('/')
-  .get(getPosts)
-  .post(createPost);
+  .get(protect, getPosts)
+  .post(protect, createPost);
 
-// Custom Routes
-router.post('/connections', toggleConnection);
-router.post('/generate', generateAIPost);
+// Custom AI Generation Route
+router.post('/generate', protect, generateAIPost);
+
+// OAuth Connection Routes
+// NOTE: /link and /callback do NOT use the protect middleware because they are browser redirects.
+// Token validation is handled manually inside the controller for these specific routes.
+router.get('/connections/:platform/link', linkConnection);
+router.get('/connections/twitter/callback', twitterCallback);
+router.post('/connections/disconnect', protect, disconnectConnection);
 
 // User Profile & Account Management
 router.route('/me')
-  .get(getMe)
-  .delete(deleteAccount);
+  .get(protect, getMe)
+  .delete(protect, deleteAccount);
 
-// ID-specific routes for CRUD
+// ID-specific routes for CRUD operations
 router.route('/:id')
-  .put(updatePost)
-  .delete(deletePost);
+  .put(protect, updatePost)
+  .delete(protect, deletePost);
 
 module.exports = router;

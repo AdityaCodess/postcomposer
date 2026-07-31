@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
 const Dashboard = ({ setIsAuthenticated }) => {
-  const [activeTab, setActiveTab] = useState('compose'); // 'compose', 'history', 'settings'
+  const [activeTab, setActiveTab] = useState('compose'); 
   const [content, setContent] = useState('');
   const [platform, setPlatform] = useState('twitter');
   const [mediaPreview, setMediaPreview] = useState(null);
@@ -28,6 +28,24 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [postHistory, setPostHistory] = useState([]);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const linked = params.get('linked');
+    const authError = params.get('error');
+
+    if (linked) {
+      setStatus({ type: 'success', message: `Successfully linked ${linked} account.` });
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setActiveTab('settings'); // Keep them on the settings page after redirect
+    }
+    
+    if (authError) {
+      setStatus({ type: 'error', message: 'Failed to authenticate social account.' });
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setActiveTab('settings');
+    }
+
     fetchUserData();
     fetchPosts();
   }, []);
@@ -103,7 +121,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
       fetchPosts(); 
     } catch (error) {
       setStatus({ type: 'error', message: 'Failed to delete post.' });
-    } finally {
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
     }
   };
@@ -164,12 +181,18 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  const toggleConnection = async (plat) => {
-    try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/connections`, { platform: plat }, getAuthConfig());
-      if (res.data.success) setLinkedAccounts(res.data.data);
-    } catch (error) {
-      setStatus({ type: 'error', message: 'Failed to update connection.' });
+  const handleConnectionClick = async (plat) => {
+    if (linkedAccounts[plat]) {
+      try {
+        const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/connections/disconnect`, { platform: plat }, getAuthConfig());
+        if (res.data.success) setLinkedAccounts(res.data.data);
+      } catch (error) {
+        setStatus({ type: 'error', message: 'Failed to disconnect.' });
+        setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+      }
+    } else {
+      const token = localStorage.getItem('token');
+      window.location.href = `${import.meta.env.VITE_API_URL}/posts/connections/${plat}/link?token=${token}`;
     }
   };
 
@@ -207,22 +230,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
             Account Settings
           </button>
         </nav>
-
-        <div className="p-4 border-t border-zinc-800/60">
-          <p className="text-xs font-semibold text-zinc-600 uppercase tracking-wider mb-4 px-2">Connections</p>
-          <div className="space-y-2">
-            {Object.keys(linkedAccounts).map((plat) => (
-              <button 
-                key={plat}
-                onClick={() => toggleConnection(plat)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-md hover:bg-zinc-900/50 transition-colors group"
-              >
-                <span className="capitalize text-sm text-zinc-400 group-hover:text-zinc-300">{plat}</span>
-                <div className={`w-2 h-2 rounded-full ${linkedAccounts[plat] ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
-              </button>
-            ))}
-          </div>
-        </div>
       </aside>
 
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
@@ -438,6 +445,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
               </div>
 
               <div className="space-y-6">
+                
                 {/* Profile Information */}
                 <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                   <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>
@@ -454,6 +462,30 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         {userProfile?.email || 'Loading...'}
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Linked Accounts Panel */}
+                <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Linked Social Accounts</h3>
+                  <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                    Connect your social media profiles to enable cross-platform publishing. 
+                  </p>
+                  <div className="space-y-3">
+                    {Object.keys(linkedAccounts).map((plat) => (
+                      <div key={plat} className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2 h-2 rounded-full ${linkedAccounts[plat] ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
+                          <span className="capitalize text-sm font-medium text-zinc-300">{plat}</span>
+                        </div>
+                        <button 
+                          onClick={() => handleConnectionClick(plat)}
+                          className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${linkedAccounts[plat] ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_10px_rgba(79,70,229,0.2)]'}`}
+                        >
+                          {linkedAccounts[plat] ? 'Disconnect' : 'Connect'}
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

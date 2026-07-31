@@ -1,9 +1,17 @@
 const Post = require('../models/Post');
 const User = require('../models/User');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const jwt = require('jsonwebtoken');
+const { TwitterApi } = require('twitter-api-v2');
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+// Initialize Twitter Client (OAuth 2.0)
+const twitterClient = new TwitterApi({
+  clientId: process.env.TWITTER_CLIENT_ID,
+  clientSecret: process.env.TWITTER_CLIENT_SECRET,
+});
 
 const getPosts = async (req, res) => {
   try {
@@ -19,6 +27,27 @@ const createPost = async (req, res) => {
     const { platform, content, media } = req.body;
     if (!content && !media) return res.status(400).json({ success: false, message: 'Content or media is required' });
 
+    const user = await User.findById(req.user._id);
+
+    // If platform is Twitter, push it live to the actual API
+    if (platform === 'twitter') {
+      if (!user.twitterTokens || !user.twitterTokens.accessToken) {
+        return res.status(401).json({ success: false, message: 'Twitter account not linked' });
+      }
+
+      // Create a user-specific client using their stored token
+      const userTwitterClient = new TwitterApi(user.twitterTokens.accessToken);
+      
+      try {
+        // Publish the real tweet
+        await userTwitterClient.v2.tweet(content);
+      } catch (twitterErr) {
+        console.error("Twitter API Error:", twitterErr);
+        return res.status(500).json({ success: false, message: 'Failed to publish to Twitter live feed.' });
+      }
+    }
+
+    // Save to our own database history
     const post = await Post.create({
       user: req.user._id,
       platform,
@@ -26,24 +55,95 @@ const createPost = async (req, res) => {
       media,
       status: 'published'
     });
+    
     res.status(201).json({ success: true, data: post });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to deploy post' });
   }
 };
 
-const toggleConnection = async (req, res) => {
+const linkConnection = async (req, res) => {
+  const { platform } = req.params;
+  const { token } = req.query; 
+  
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+
+    if (platform === 'twitter') {
+      // Generate real secure OAuth 2.0 PKCE link
+      const callbackUrl = `${process.env.BACKEND_URL}/api/posts/connections/twitter/callback`;
+      const { url, codeVerifier, state } = twitterClient.generateOAuth2AuthLink(
+        callbackUrl, 
+        { scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'] }
+      );
+
+      // Temporarily store the security strings in the database to verify the callback later
+      user.twitterOAuth = { codeVerifier, state };
+      await user.save();
+
+      // Physically redirect browser to the real Twitter login screen
+      return res.redirect(url);
+    }
+    
+    // Fallback for other platforms not yet fully implemented
+    user.linkedAccounts[platform] = true;
+    await user.save();
+    const frontendURL = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendURL}?linked=${platform}`);
+
+  } catch (error) {
+    console.error(error);
+    const frontendURL = process.env.FRONTEND_URL || 'http://localhost:5173';
+    res.redirect(`${frontendURL}?error=auth_failed`);
+  }
+};
+
+const twitterCallback = async (req, res) => {
+  const { state, code } = req.query;
+  const frontendURL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  try {
+    // Find which user initiated this exact auth flow using the unique state string
+    const user = await User.findOne({ 'twitterOAuth.state': state });
+    if (!user) return res.redirect(`${frontendURL}?error=invalid_state`);
+
+    // Exchange the temporary code for permanent API tokens
+    const callbackUrl = `${process.env.BACKEND_URL}/api/posts/connections/twitter/callback`;
+    const { client: loggedClient, accessToken, refreshToken } = await twitterClient.loginWithOAuth2({
+      code,
+      codeVerifier: user.twitterOAuth.codeVerifier,
+      redirectUri: callbackUrl,
+    });
+
+    // Save tokens securely and activate the frontend toggle
+    user.twitterTokens = { accessToken, refreshToken };
+    user.linkedAccounts.twitter = true;
+    user.twitterOAuth = undefined; // Clear the temporary security strings
+    await user.save();
+
+    // Send back to the React app
+    res.redirect(`${frontendURL}?linked=twitter`);
+  } catch (error) {
+    console.error('OAuth Callback Error:', error);
+    res.redirect(`${frontendURL}?error=twitter_callback_failed`);
+  }
+};
+
+const disconnectConnection = async (req, res) => {
   try {
     const { platform } = req.body;
     const user = await User.findById(req.user._id);
     
     if (user.linkedAccounts[platform] !== undefined) {
-      user.linkedAccounts[platform] = !user.linkedAccounts[platform];
+      user.linkedAccounts[platform] = false;
+      if (platform === 'twitter') user.twitterTokens = undefined; // Wipe API tokens
       await user.save();
     }
+    
     res.status(200).json({ success: true, data: user.linkedAccounts });
   } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to update connection' });
+    res.status(500).json({ success: false, message: 'Failed to disconnect' });
   }
 };
 
@@ -56,14 +156,12 @@ const getMe = async (req, res) => {
   }
 };
 
-// NEW: Wipe account and all associated posts
 const deleteAccount = async (req, res) => {
   try {
     await Post.deleteMany({ user: req.user._id });
     await User.findByIdAndDelete(req.user._id);
     res.status(200).json({ success: true, message: 'Account and all data permanently deleted' });
   } catch (error) {
-    console.error(error);
     res.status(500).json({ success: false, message: 'Failed to delete account' });
   }
 };
@@ -84,7 +182,6 @@ const generateAIPost = async (req, res) => {
 
     res.status(200).json({ success: true, data: generatedText });
   } catch (error) {
-    console.error('AI Generation Error:', error);
     res.status(500).json({ success: false, message: 'Failed to generate AI content.' });
   }
 };
@@ -115,4 +212,15 @@ const deletePost = async (req, res) => {
   }
 };
 
-module.exports = { getPosts, createPost, toggleConnection, getMe, deleteAccount, updatePost, deletePost, generateAIPost };
+module.exports = { 
+  getPosts, 
+  createPost, 
+  linkConnection, 
+  twitterCallback, 
+  disconnectConnection, 
+  getMe, 
+  deleteAccount, 
+  updatePost, 
+  deletePost, 
+  generateAIPost 
+};
