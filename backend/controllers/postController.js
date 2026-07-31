@@ -68,8 +68,7 @@ const linkConnection = async (req, res) => {
   
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id);
-
+    
     if (platform === 'twitter') {
       // Generate real secure OAuth 2.0 PKCE link
       const callbackUrl = `${process.env.BACKEND_URL}/api/posts/connections/twitter/callback`;
@@ -78,22 +77,24 @@ const linkConnection = async (req, res) => {
         { scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'] }
       );
 
-      // Temporarily store the security strings in the database to verify the callback later
-      user.twitterOAuth = { codeVerifier, state };
-      await user.save();
+      // Directly update the DB to avoid missing password validation errors
+      await User.findByIdAndUpdate(decoded.id, {
+        twitterOAuth: { codeVerifier, state }
+      });
 
       // Physically redirect browser to the real Twitter login screen
       return res.redirect(url);
     }
     
-    // Fallback for other platforms not yet fully implemented
-    user.linkedAccounts[platform] = true;
-    await user.save();
+    // Fallback for other platforms
+    await User.findByIdAndUpdate(decoded.id, {
+      [`linkedAccounts.${platform}`]: true
+    });
     const frontendURL = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.redirect(`${frontendURL}?linked=${platform}`);
 
   } catch (error) {
-    console.error(error);
+    console.error('Link Connection Error:', error);
     const frontendURL = process.env.FRONTEND_URL || 'http://localhost:5173';
     res.redirect(`${frontendURL}?error=auth_failed`);
   }
@@ -116,11 +117,12 @@ const twitterCallback = async (req, res) => {
       redirectUri: callbackUrl,
     });
 
-    // Save tokens securely and activate the frontend toggle
-    user.twitterTokens = { accessToken, refreshToken };
-    user.linkedAccounts.twitter = true;
-    user.twitterOAuth = undefined; // Clear the temporary security strings
-    await user.save();
+    // Directly update the DB with tokens and wipe the temporary security strings
+    await User.findByIdAndUpdate(user._id, {
+      twitterTokens: { accessToken, refreshToken },
+      'linkedAccounts.twitter': true,
+      $unset: { twitterOAuth: "" } // Removes the field entirely
+    });
 
     // Send back to the React app
     res.redirect(`${frontendURL}?linked=twitter`);
@@ -133,15 +135,21 @@ const twitterCallback = async (req, res) => {
 const disconnectConnection = async (req, res) => {
   try {
     const { platform } = req.body;
-    const user = await User.findById(req.user._id);
     
-    if (user.linkedAccounts[platform] !== undefined) {
-      user.linkedAccounts[platform] = false;
-      if (platform === 'twitter') user.twitterTokens = undefined; // Wipe API tokens
-      await user.save();
+    const updateQuery = {
+      $set: { [`linkedAccounts.${platform}`]: false }
+    };
+
+    // If Twitter, also wipe out the API tokens for security
+    if (platform === 'twitter') {
+      updateQuery.$unset = { twitterTokens: "" };
     }
+
+    await User.findByIdAndUpdate(req.user._id, updateQuery);
     
-    res.status(200).json({ success: true, data: user.linkedAccounts });
+    // Fetch the updated linked accounts status to send back to React
+    const updatedUser = await User.findById(req.user._id);
+    res.status(200).json({ success: true, data: updatedUser.linkedAccounts });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to disconnect' });
   }
