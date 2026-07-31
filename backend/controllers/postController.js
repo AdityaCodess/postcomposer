@@ -73,7 +73,7 @@ const generateAIPost = async (req, res) => {
     const { topic, platform } = req.body;
     if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-preview" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
     const prompt = `You are an expert social media manager. Write a professional, highly engaging post for ${platform} about the following topic: "${topic}". 
     Format it perfectly for ${platform} (use appropriate length, tone, formatting, and a few relevant hashtags). 
     Do not include introductory filler text like "Here is your post", just return the actual post content itself.`;
