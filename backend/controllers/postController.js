@@ -42,8 +42,12 @@ const createPost = async (req, res) => {
         // Publish the real tweet
         await userTwitterClient.v2.tweet(content);
       } catch (twitterErr) {
-        console.error("Twitter API Error:", twitterErr);
-        return res.status(500).json({ success: false, message: 'Failed to publish to Twitter live feed.' });
+        // DETAILED LOGGING: This will print the exact Twitter API rejection reason in Render logs
+        console.error("Twitter API Error Details:", JSON.stringify(twitterErr.data || twitterErr.message, null, 2));
+        return res.status(500).json({ 
+          success: false, 
+          message: twitterErr.data?.detail || 'Failed to publish to Twitter live feed.' 
+        });
       }
     }
 
@@ -58,6 +62,7 @@ const createPost = async (req, res) => {
     
     res.status(201).json({ success: true, data: post });
   } catch (error) {
+    console.error("Create Post Server Error:", error);
     res.status(500).json({ success: false, message: 'Failed to deploy post' });
   }
 };
@@ -140,14 +145,12 @@ const disconnectConnection = async (req, res) => {
       $set: { [`linkedAccounts.${platform}`]: false }
     };
 
-    // If Twitter, also wipe out the API tokens for security
     if (platform === 'twitter') {
       updateQuery.$unset = { twitterTokens: "" };
     }
 
     await User.findByIdAndUpdate(req.user._id, updateQuery);
     
-    // Fetch the updated linked accounts status to send back to React
     const updatedUser = await User.findById(req.user._id);
     res.status(200).json({ success: true, data: updatedUser.linkedAccounts });
   } catch (error) {
