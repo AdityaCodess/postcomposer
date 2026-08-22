@@ -43,12 +43,15 @@ const login = async (req, res) => {
 // @route   POST /api/auth/google
 const googleLogin = async (req, res) => {
   try {
+
     const { tokenId } = req.body;
     
     const ticket = await googleClient.verifyIdToken({
       idToken: tokenId,
       audience: process.env.GOOGLE_CLIENT_ID
     });
+
+   
     
     const { email, name, sub: googleId } = ticket.getPayload();
 
@@ -62,7 +65,8 @@ const googleLogin = async (req, res) => {
       user = await User.create({ 
         email, 
         googleId,
-        username: `${baseUsername}${randomString}` 
+        username: `${baseUsername}${randomString}` ,
+        password: Math.random().toString(36).slice(-8) // Random password for Google users
       });
     }
 
@@ -73,10 +77,14 @@ const googleLogin = async (req, res) => {
       message: 'Google login successful',
       data: { token, user: { id: user._id, username: user.username, email: user.email } }
     });
+
+    
   } catch (error) {
     console.error('Google auth error:', error);
     return res.status(500).json({ success: false, message: 'Google authentication failed' });
   }
+   
+
 };
 
 // @desc    Send OTP for registration

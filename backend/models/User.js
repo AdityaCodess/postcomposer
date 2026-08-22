@@ -20,7 +20,6 @@ const userSchema = new mongoose.Schema({
     linkedin: { type: Boolean, default: false },
     instagram: { type: Boolean, default: false },
   },
-  // NEW: Twitter OAuth Storage Fields
   twitterTokens: {
     accessToken: { type: String },
     refreshToken: { type: String },
@@ -28,6 +27,16 @@ const userSchema = new mongoose.Schema({
   twitterOAuth: {
     state: { type: String },
     codeVerifier: { type: String },
+  },
+  // NEW: LinkedIn Storage
+  linkedinTokens: {
+    accessToken: { type: String },
+  },
+  linkedinOAuth: {
+    state: { type: String },
+  },
+  linkedinId: { 
+    type: String // Stores the user's unique URN required for posting
   }
 }, { timestamps: true });
 
