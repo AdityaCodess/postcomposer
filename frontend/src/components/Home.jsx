@@ -30,7 +30,7 @@ const Home = () => {
     visible: { opacity: 1, transition: { staggerChildren: 0.15 } }
   };
 
-  // Pure Engineering Scenarios (No AI)
+  // Pure Engineering Scenarios (No AI focus in the terminal)
   const scenarios = [
     {
       content: "Pushing a major update to the AegisGRID anomaly detector. SCADA data parsing is now 40% faster on the live dashboard. Next up: integrating the PMU simulation engine.\n\n#CyberSecurity #Python #GridTech",
@@ -105,7 +105,7 @@ const Home = () => {
         </div>
         <div className="flex items-center gap-6">
           <a href="#features" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors hidden md:block">Features</a>
-          <a href="#security" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors hidden md:block">Security</a>
+          <a href="#advantage" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors hidden md:block">The Advantage</a>
           <Link to="/login" className="text-sm font-semibold text-zinc-900 bg-zinc-100 hover:bg-white px-5 py-2 rounded-md transition-all shadow-sm">
             Start Publishing Free
           </Link>
@@ -169,7 +169,7 @@ const Home = () => {
                 <div className="w-3 h-3 rounded-full bg-zinc-700"></div>
                 <div className="w-3 h-3 rounded-full bg-zinc-700"></div>
               </div>
-              <span className="text-zinc-500 font-mono text-[10px] tracking-widest uppercase">Demo Post</span>
+              <span className="text-zinc-500 font-mono text-[10px] tracking-widest uppercase">/api/posts/create</span>
             </div>
             
             {/* Terminal Body */}
@@ -192,7 +192,7 @@ const Home = () => {
                   <div className="absolute inset-0 bg-[#151515]/80 backdrop-blur-sm flex items-center justify-center">
                     <div className="flex items-center gap-3 text-indigo-400 text-xs">
                       <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                      Executing Auth Handshakes...
+                      Executing OAuth 2.0 Handshakes...
                     </div>
                   </div>
                 )}
@@ -208,15 +208,11 @@ const Home = () => {
                   >
                     <div className="flex items-center gap-2 text-emerald-400">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                      [201] Post successfully published to Twitter
+                      [201] Post successfully published to Twitter API v2
                     </div>
                     <div className="flex items-center gap-2 text-emerald-400">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                      [201] Post successfully published to LinkedIn
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-400">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
-                      [201] Post successfully published to Instagram
+                      [201] Post successfully published to LinkedIn UGC API
                     </div>
                   </motion.div>
                 )}
@@ -272,23 +268,71 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Trust / Infrastructure Banner */}
-      <section id="security" className="py-20 px-6 bg-[#030303] overflow-hidden">
-        <div className="max-w-7xl mx-auto text-center">
-          <p className="text-zinc-500 font-mono text-xs uppercase tracking-widest mb-10">Powered by Enterprise Infrastructure</p>
-          <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: false, amount: 0.5 }}
-            transition={{ duration: 0.8 }}
-            className="flex flex-wrap justify-center gap-8 md:gap-16 items-center opacity-50 grayscale hover:grayscale-0 transition-all duration-500"
-          >
-            {['React', 'Node.js', 'MongoDB Cloud', 'Twitter API v2', 'LinkedIn Developer', 'Google Gemini AI'].map((tech, i) => (
-              <div key={i} className="text-lg md:text-xl font-bold text-zinc-300">
-                {tech}
-              </div>
-            ))}
-          </motion.div>
+      {/* NEW: The Advantage (Problem vs Solution) */}
+      <section id="advantage" className="py-24 px-6 lg:px-12 bg-[#030303] overflow-hidden border-b border-zinc-900/50">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <motion.h3 
+              variants={fadeInUp} initial="hidden" whileInView="visible" viewport={{ once: false }} 
+              className="text-3xl md:text-4xl font-bold text-zinc-100 mb-4"
+            >
+              Eliminate the friction.
+            </motion.h3>
+            <motion.p 
+              variants={fadeInUp} initial="hidden" whileInView="visible" viewport={{ once: false }} 
+              className="text-zinc-500 max-w-2xl mx-auto text-lg"
+            >
+              Why open three different apps to do one job? See how Postifye fundamentally shifts your workflow.
+            </motion.p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 lg:gap-12">
+            {/* The Old Way */}
+            <motion.div 
+              initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: false, amount: 0.3 }} transition={{ duration: 0.6 }}
+              className="bg-[#0a0a0a] border border-zinc-800/60 p-8 md:p-10 rounded-3xl opacity-80"
+            >
+              <h4 className="text-lg font-mono text-red-400/80 mb-8 border-b border-zinc-800/60 pb-4">✕ THE OLD WAY</h4>
+              <ul className="space-y-6">
+                {[
+                  "Drafting posts in Notes or by Hand.",
+                  "Staring at a blank screen with writer's block.",
+                  "Manually copying and pasting across different tabs.",
+                  "Losing track of past posts and engagement data.",
+                  "Risking security by saving passwords in browsers."
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-4 text-zinc-500">
+                    <svg className="w-5 h-5 text-red-500/50 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+
+            {/* The Postifye Way */}
+            <motion.div 
+              initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: false, amount: 0.3 }} transition={{ duration: 0.6 }}
+              className="bg-gradient-to-br from-[#121212] to-[#0a0a0a] border border-indigo-500/30 p-8 md:p-10 rounded-3xl shadow-xl shadow-indigo-900/10 relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-[80px] pointer-events-none"></div>
+              
+              <h4 className="text-lg font-mono text-indigo-400 mb-8 border-b border-indigo-500/20 pb-4">✓ THE POSTIFYE WAY</h4>
+              <ul className="space-y-6 relative z-10">
+                {[
+                  "One unified, distraction-free platform.",
+                  "LLM instantly optimizes your raw thoughts.",
+                  "Deploy to Twitter, Instagram and LinkedIn with a single click.",
+                  "Immutable post history securely logged in MongoDB.",
+                  "Stateless Authentication—we never see your passwords."
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-4 text-zinc-300">
+                    <svg className="w-5 h-5 text-indigo-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
+                    <span className="leading-relaxed">{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </motion.div>
+          </div>
         </div>
       </section>
 
@@ -315,12 +359,12 @@ const Home = () => {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3">
              <img src="/postifye.svg" alt="Postifye Logo" className="w-6 h-6 opacity-80" />
-            <span className="text-zinc-500 text-sm font-medium">© {new Date().getFullYear()} Postifye Inc. Built by Aditya.</span>
+            <span className="text-zinc-500 text-sm font-medium">© {new Date().getFullYear()} Postifye Inc. Built by Aditya Bhalla Corp.</span>
           </div>
           
           <div className="flex gap-8 text-sm font-medium">
             <Link to="/privacy" className="text-zinc-500 hover:text-zinc-300 transition-colors">Privacy Policy</Link>
-            <a href="mailto:support@postifye.com" className="text-zinc-500 hover:text-zinc-300 transition-colors">Contact Support</a>
+            <a href="mailto:support@aditya.toolchain.com" className="text-zinc-500 hover:text-zinc-300 transition-colors">Contact Support</a>
           </div>
         </div>
       </footer>
