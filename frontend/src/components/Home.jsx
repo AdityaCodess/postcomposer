@@ -127,7 +127,7 @@ const Home = () => {
         >
           <motion.div variants={fadeInUp} className="inline-flex items-center gap-2 px-3 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold mb-8">
             <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
-            Postifye Composer v2.0 is Live
+            Postifye Composer - Automate your social media workflow
           </motion.div>
           
           <motion.h2 variants={fadeInUp} className="text-5xl md:text-6xl lg:text-7xl font-extrabold text-white mb-6 tracking-tight leading-[1.1]">
