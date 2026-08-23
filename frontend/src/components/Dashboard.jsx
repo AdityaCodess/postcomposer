@@ -4,7 +4,7 @@ import axios from 'axios';
 const Dashboard = ({ setIsAuthenticated }) => {
   const [activeTab, setActiveTab] = useState('compose'); 
   const [content, setContent] = useState('');
-  const [platform, setPlatform] = useState('twitter');
+  const [platform, setPlatform] = useState('linkedin');
   const [mediaPreview, setMediaPreview] = useState(null);
   
   const [showAI, setShowAI] = useState(false);
@@ -13,6 +13,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [isAnnual, setIsAnnual] = useState(false); // Billing toggle state
   
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -81,6 +82,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
   };
 
   const handleMediaUpload = (e) => {
+    if (platform === 'twitter') {
+      setStatus({ type: 'error', message: 'Twitter media uploads are coming soon due to API updates.' });
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+      return;
+    }
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
@@ -96,7 +102,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const resetComposer = () => {
     setContent('');
-    setPlatform('twitter');
+    setPlatform('linkedin');
     clearMedia();
     setIsEditing(false);
     setEditId(null);
@@ -125,20 +131,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm("CRITICAL WARNING: This will permanently delete your account and wipe all your deployment history from the database. This action cannot be undone. Proceed?")) return;
-    try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
-      handleLogout();
-    } catch (error) {
-      setStatus({ type: 'error', message: 'Failed to delete account.' });
-      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
-    }
-  };
-
   const handlePublish = async (e) => {
     e.preventDefault();
     if (!linkedAccounts[platform]) return setStatus({ type: 'error', message: `Connect ${platform} before publishing.` });
+    
     if (!content.trim() && !mediaPreview) {
       return setStatus({ type: 'error', message: 'You must add either some text or an image to publish.' });
     }
@@ -157,7 +153,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       resetComposer();
       setActiveTab('history');
     } catch (error) {
-      setStatus({ type: 'error', message: `Post ${isEditing ? 'update' : 'creation'} failed.` });
+      setStatus({ type: 'error', message: error.response?.data?.message || `Post ${isEditing ? 'update' : 'creation'} failed.` });
     } finally {
       setIsLoading(false);
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
@@ -176,7 +172,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
         setAiPrompt('');
       }
     } catch (error) {
-      setStatus({ type: 'error', message: 'AI Generation failed. Check your API key.' });
+      setStatus({ type: 'error', message: error.response?.data?.message || 'AI Generation failed. Check your plan quota.' });
     } finally {
       setIsGenerating(false);
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
@@ -197,6 +193,8 @@ const Dashboard = ({ setIsAuthenticated }) => {
       window.location.href = `${import.meta.env.VITE_API_URL}/posts/connections/${plat}/link?token=${token}`;
     }
   };
+
+  const userPlan = userProfile?.subscription?.plan || 'free';
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
@@ -222,6 +220,14 @@ const Dashboard = ({ setIsAuthenticated }) => {
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Post History
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('billing')}
+            className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'billing' ? 'bg-indigo-900/30 text-indigo-400 font-medium border border-indigo-500/30' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            Billing & Plans
           </button>
 
           <button 
@@ -262,12 +268,17 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </div>
                   <select 
                     value={platform} 
-                    onChange={(e) => setPlatform(e.target.value)}
-                    className="bg-[#111] text-zinc-300 border border-zinc-800 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-zinc-600 focus:border-zinc-600 capitalize cursor-pointer"
+                    onChange={(e) => {
+                      setPlatform(e.target.value);
+                      if (e.target.value === 'twitter') clearMedia();
+                    }}
+                    className="bg-[#111] text-zinc-300 border border-zinc-800 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-zinc-600 focus:border-zinc-600 cursor-pointer"
                   >
-                    <option value="twitter">Twitter</option>
-                    <option value="linkedin">LinkedIn</option>
-                    <option value="instagram">Instagram</option>
+                    <option value="linkedin">LinkedIn (Free: 28/mo)</option>
+                    <option value="twitter" disabled={userPlan === 'free'}>
+                      Twitter / X {userPlan === 'free' ? '🔒 (Pro Only)' : '(Media Coming Soon)'}
+                    </option>
+                    <option value="instagram" disabled>Instagram ✦ (Coming Soon)</option>
                   </select>
                 </div>
 
@@ -320,9 +331,16 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     <div className="flex items-center gap-2">
                       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
                       <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-zinc-500 hover:text-zinc-200 p-2 rounded-lg hover:bg-zinc-800 transition-colors flex items-center gap-2 text-sm"
-                        title="Attach Media"
+                        onClick={() => {
+                          if (platform === 'twitter') {
+                            setStatus({ type: 'error', message: 'Twitter media uploads are coming soon.' });
+                            setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+                          } else {
+                            fileInputRef.current?.click();
+                          }
+                        }}
+                        className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${platform === 'twitter' ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
+                        title={platform === 'twitter' ? "Media currently unsupported for Twitter" : "Attach Media"}
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                       </button>
@@ -439,6 +457,96 @@ const Dashboard = ({ setIsAuthenticated }) => {
             </div>
           )}
 
+          {activeTab === 'billing' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+              <div className="mb-10 text-center">
+                <h2 className="text-2xl font-bold text-zinc-100 mb-2">Upgrade your workflow.</h2>
+                <p className="text-zinc-400 mb-8">Choose the plan that fits your posting volume.</p>
+                
+                {/* Billing Toggle */}
+                <div className="flex items-center justify-center gap-4">
+                  <span className={`text-sm font-semibold transition-colors ${!isAnnual ? 'text-white' : 'text-zinc-500'}`}>Monthly</span>
+                  <button 
+                    onClick={() => setIsAnnual(!isAnnual)}
+                    className="w-14 h-7 bg-[#151515] border border-zinc-700 rounded-full p-1 relative transition-colors focus:outline-none flex items-center"
+                  >
+                    <div className={`w-5 h-5 bg-indigo-500 rounded-full shadow-md transition-transform duration-300 ease-in-out ${isAnnual ? 'translate-x-7' : 'translate-x-0'}`}></div>
+                  </button>
+                  <span className={`text-sm font-semibold flex items-center gap-2 transition-colors ${isAnnual ? 'text-white' : 'text-zinc-500'}`}>
+                    Annually
+                    <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] px-2 py-0.5 rounded-full whitespace-nowrap">Save ~15%</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                {/* Hobby Plan */}
+                <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
+                  {userPlan === 'free' && <div className="absolute top-0 right-6 transform -translate-y-1/2 bg-zinc-700 text-xs font-bold px-3 py-1 rounded-full text-zinc-200 shadow-lg">CURRENT PLAN</div>}
+                  <h3 className="text-lg font-semibold text-zinc-200 mb-2">Hobby</h3>
+                  <div className="mb-6 flex flex-col">
+                    <span className="text-3xl font-bold text-white">Free</span>
+                    <span className="text-xs text-zinc-500 mt-1 opacity-0">Spacer</span>
+                  </div>
+                  <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 28 LinkedIn Posts / mo</li>
+                    <li className="flex items-center gap-2 text-zinc-600"><svg className="w-4 h-4 text-zinc-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> 0 Twitter Posts</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 5 AI Credits / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> LinkedIn Image Uploads</li>
+                  </ul>
+                  <button disabled className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-800 text-zinc-500 cursor-not-allowed">
+                    {userPlan === 'free' ? 'Active' : 'Downgrade'}
+                  </button>
+                </div>
+
+                {/* Creator Plan */}
+                <div className="bg-gradient-to-b from-[#151515] to-[#0A0A0A] border border-indigo-500/50 rounded-2xl p-6 flex flex-col relative shadow-xl shadow-indigo-900/10 scale-105 z-10">
+                  <div className="absolute top-0 right-6 transform -translate-y-1/2 bg-indigo-500 text-xs font-bold px-3 py-1 rounded-full text-white shadow-lg">MOST POPULAR</div>
+                  <h3 className="text-lg font-semibold text-indigo-400 mb-2">Creator</h3>
+                  <div className="mb-6 flex flex-col">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-white">{isAnnual ? '₹649' : '₹749'}</span>
+                      <span className="text-sm text-zinc-500 line-through">₹1,299</span>
+                      <span className="text-sm text-zinc-500">/mo</span>
+                    </div>
+                    <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹7,788 yearly' : 'Billed monthly'}</span>
+                  </div>
+                  <ul className="space-y-3 mb-8 text-sm text-zinc-300 flex-1">
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 1,000 LinkedIn Posts / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlock Twitter / X Publishing</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 150 Twitter Posts / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 100 AI Credits / mo</li>
+                  </ul>
+                  <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-lg shadow-indigo-500/20">
+                    Upgrade to Creator
+                  </button>
+                </div>
+
+                {/* Pro Plan */}
+                <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
+                  <h3 className="text-lg font-semibold text-zinc-200 mb-2">Agency Pro</h3>
+                  <div className="mb-6 flex flex-col">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-white">{isAnnual ? '₹2,999' : '₹3,499'}</span>
+                      <span className="text-sm text-zinc-500 line-through">₹4,999</span>
+                      <span className="text-sm text-zinc-500">/mo</span>
+                    </div>
+                    <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹35,988 yearly' : 'Billed monthly'}</span>
+                  </div>
+                  <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited LinkedIn Posts</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 Twitter Posts / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited AI Credits</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited Connected Profiles</li>
+                  </ul>
+                  <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors">
+                    Upgrade to Pro
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {activeTab === 'settings' && (
             <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="mb-8">
@@ -447,8 +555,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
               </div>
 
               <div className="space-y-6">
-                
-                {/* Profile Information */}
                 <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                   <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>
                   <div className="space-y-4">
@@ -467,7 +573,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </div>
                 </div>
 
-                {/* Linked Accounts Panel */}
                 <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                   <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Linked Social Accounts</h3>
                   <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
@@ -491,7 +596,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </div>
                 </div>
 
-                {/* Session Actions */}
                 <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                   <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Session</h3>
                   <button 
@@ -503,7 +607,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </button>
                 </div>
 
-                {/* Danger Zone */}
                 <div className="bg-red-950/10 border border-red-900/30 rounded-xl overflow-hidden shadow-lg p-6">
                   <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</h3>
                   <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
