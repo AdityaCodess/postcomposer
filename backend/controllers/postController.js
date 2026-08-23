@@ -30,38 +30,94 @@ const createPost = async (req, res) => {
 
     const user = await User.findById(req.user._id);
 
-    // TWITTER LOGIC
+    // ==========================================
+    // TWITTER DEPLOYMENT LOGIC
+    // ==========================================
     if (platform === 'twitter') {
       if (!user.twitterTokens || !user.twitterTokens.accessToken) {
         return res.status(401).json({ success: false, message: 'Twitter account not linked' });
       }
       const userTwitterClient = new TwitterApi(user.twitterTokens.accessToken);
+      
       try {
-        await userTwitterClient.v2.tweet(content);
+        // Note: Twitter v2 Media upload requires a separate 3-step v1.1 upload process.
+        // For now, executing text-only fallback if media is attached to Twitter.
+        await userTwitterClient.v2.tweet(content || "Media upload initiated via Postifye.");
       } catch (twitterErr) {
         console.error("Twitter API Error Details:", JSON.stringify(twitterErr.data || twitterErr.message, null, 2));
         return res.status(500).json({ success: false, message: 'Twitter API rejected the post.' });
       }
     }
 
-    // LINKEDIN LOGIC
+    // ==========================================
+    // LINKEDIN DEPLOYMENT LOGIC (3-STEP UPLOAD)
+    // ==========================================
     if (platform === 'linkedin') {
       if (!user.linkedinTokens || !user.linkedinTokens.accessToken || !user.linkedinId) {
         return res.status(401).json({ success: false, message: 'LinkedIn account not linked' });
       }
+      
       try {
-        const linkedinPostData = {
+        let linkedinPostData = {
           author: `urn:li:person:${user.linkedinId}`,
           lifecycleState: "PUBLISHED",
           specificContent: {
             "com.linkedin.ugc.ShareContent": {
-              shareCommentary: { text: content },
-              shareMediaCategory: "NONE" 
+              shareCommentary: { text: content || "" },
+              shareMediaCategory: "NONE"
             }
           },
           visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
         };
 
+        // If media is attached, execute the 3-Step Asset Upload
+        if (media) {
+          // Step 1: Decode the Base64 image from the frontend
+          const mimeType = media.split(';')[0].split(':')[1]; // e.g., 'image/jpeg'
+          const base64Data = media.split(',')[1];
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+
+          // Step 2: Register the upload with LinkedIn
+          const registerResponse = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
+            registerUploadRequest: {
+              recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+              owner: `urn:li:person:${user.linkedinId}`,
+              serviceRelationships: [{
+                relationshipType: 'OWNER',
+                identifier: 'urn:li:userGeneratedContent'
+              }]
+            }
+          }, {
+            headers: {
+              'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+
+          const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+          const assetUrn = registerResponse.data.value.asset;
+
+          // Step 3: Upload the raw binary buffer to the provided URL
+          await axios.put(uploadUrl, imageBuffer, {
+            headers: {
+              'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
+              'Content-Type': mimeType
+            }
+          });
+
+          // Step 4: Modify the final UGC payload to include the newly uploaded image URN
+          linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory = "IMAGE";
+          linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].media = [
+            {
+              status: "READY",
+              description: { text: "Uploaded via Postifye Composer" },
+              media: assetUrn,
+              title: { text: "Postifye Media Attachment" }
+            }
+          ];
+        }
+
+        // Final Step: Deploy the UGC Post (Text + Image)
         await axios.post('https://api.linkedin.com/v2/ugcPosts', linkedinPostData, {
           headers: {
             'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
@@ -69,13 +125,16 @@ const createPost = async (req, res) => {
             'Content-Type': 'application/json'
           }
         });
+        
       } catch (linkedinErr) {
         console.error("LinkedIn API Error:", linkedinErr.response?.data || linkedinErr.message);
         return res.status(500).json({ success: false, message: 'Failed to publish to LinkedIn live feed.' });
       }
     }
 
-    // Save to database
+    // ==========================================
+    // DATABASE LOGGING
+    // ==========================================
     const post = await Post.create({
       user: req.user._id,
       platform,

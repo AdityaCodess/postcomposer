@@ -36,7 +36,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       setStatus({ type: 'success', message: `Successfully linked ${linked} account.` });
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
       window.history.replaceState({}, document.title, window.location.pathname);
-      setActiveTab('settings'); // Keep them on the settings page after redirect
+      setActiveTab('settings'); 
     }
     
     if (authError) {
@@ -139,11 +139,13 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const handlePublish = async (e) => {
     e.preventDefault();
     if (!linkedAccounts[platform]) return setStatus({ type: 'error', message: `Connect ${platform} before publishing.` });
-    if (!content && !mediaPreview) return setStatus({ type: 'error', message: 'Post requires content or media.' });
+    if (!content.trim() && !mediaPreview) {
+      return setStatus({ type: 'error', message: 'You must add either some text or an image to publish.' });
+    }
     
     setIsLoading(true);
     try {
-      const payload = { platform, content, media: mediaPreview };
+      const payload = { platform, content: content.trim(), media: mediaPreview };
       if (isEditing) {
         await axios.put(`${import.meta.env.VITE_API_URL}/posts/${editId}`, payload, getAuthConfig());
         setStatus({ type: 'success', message: 'Post updated successfully.' });

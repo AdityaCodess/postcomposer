@@ -6,6 +6,7 @@ const {
   createPost, 
   linkConnection,
   twitterCallback, 
+  linkedinCallback,
   disconnectConnection,
   getMe,
   deleteAccount, 
@@ -29,6 +30,7 @@ router.post('/generate', protect, generateAIPost);
 // Token validation is handled manually inside the controller for these specific routes.
 router.get('/connections/:platform/link', linkConnection);
 router.get('/connections/twitter/callback', twitterCallback);
+router.get('/connections/linkedin/callback', linkedinCallback);
 router.post('/connections/disconnect', protect, disconnectConnection);
 
 // User Profile & Account Management
