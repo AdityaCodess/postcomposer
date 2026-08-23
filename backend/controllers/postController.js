@@ -29,6 +29,32 @@ const createPost = async (req, res) => {
     if (!content && !media) return res.status(400).json({ success: false, message: 'Content or media is required' });
 
     const user = await User.findById(req.user._id);
+    
+    // SUBSCRIPTION & ADMIN CHECK
+    const isAdmin = user.email === process.env.ADMIN_EMAIL;
+    const plan = user.subscription?.plan || 'free';
+    const linkedinCount = user.subscription?.linkedinPostsThisMonth || 0;
+
+    // 1. Block Instagram
+    if (platform === 'instagram') {
+      return res.status(400).json({ success: false, message: 'Instagram integration is coming soon!' });
+    }
+
+    // 2. Block Twitter on Free Tier (Unless Admin)
+    if (platform === 'twitter' && plan === 'free' && !isAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'Twitter publishing is reserved for Creator & Pro plans. Upgrade to unlock.' 
+      });
+    }
+
+    // 3. Enforce 28 LinkedIn Posts Limit on Free Tier (Unless Admin)
+    if (platform === 'linkedin' && plan === 'free' && linkedinCount >= 28 && !isAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'You have reached your 28 free LinkedIn posts for this month. Upgrade to continue publishing!' 
+      });
+    }
 
     // ==========================================
     // TWITTER DEPLOYMENT LOGIC
@@ -40,8 +66,6 @@ const createPost = async (req, res) => {
       const userTwitterClient = new TwitterApi(user.twitterTokens.accessToken);
       
       try {
-        // Note: Twitter v2 Media upload requires a separate 3-step v1.1 upload process.
-        // For now, executing text-only fallback if media is attached to Twitter.
         await userTwitterClient.v2.tweet(content || "Media upload initiated via Postifye.");
       } catch (twitterErr) {
         console.error("Twitter API Error Details:", JSON.stringify(twitterErr.data || twitterErr.message, null, 2));
@@ -70,14 +94,11 @@ const createPost = async (req, res) => {
           visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
         };
 
-        // If media is attached, execute the 3-Step Asset Upload
         if (media) {
-          // Step 1: Decode the Base64 image from the frontend
-          const mimeType = media.split(';')[0].split(':')[1]; // e.g., 'image/jpeg'
+          const mimeType = media.split(';')[0].split(':')[1];
           const base64Data = media.split(',')[1];
           const imageBuffer = Buffer.from(base64Data, 'base64');
 
-          // Step 2: Register the upload with LinkedIn
           const registerResponse = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
             registerUploadRequest: {
               recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
@@ -97,7 +118,6 @@ const createPost = async (req, res) => {
           const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
           const assetUrn = registerResponse.data.value.asset;
 
-          // Step 3: Upload the raw binary buffer to the provided URL
           await axios.put(uploadUrl, imageBuffer, {
             headers: {
               'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
@@ -105,7 +125,6 @@ const createPost = async (req, res) => {
             }
           });
 
-          // Step 4: Modify the final UGC payload to include the newly uploaded image URN
           linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory = "IMAGE";
           linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].media = [
             {
@@ -117,7 +136,6 @@ const createPost = async (req, res) => {
           ];
         }
 
-        // Final Step: Deploy the UGC Post (Text + Image)
         await axios.post('https://api.linkedin.com/v2/ugcPosts', linkedinPostData, {
           headers: {
             'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
@@ -132,9 +150,13 @@ const createPost = async (req, res) => {
       }
     }
 
-    // ==========================================
-    // DATABASE LOGGING
-    // ==========================================
+    // Track usage (Even for admins, we log the usage for analytics)
+    if (platform === 'linkedin') {
+      await User.findByIdAndUpdate(req.user._id, {
+        $inc: { 'subscription.linkedinPostsThisMonth': 1 }
+      });
+    }
+
     const post = await Post.create({
       user: req.user._id,
       platform,
@@ -150,6 +172,46 @@ const createPost = async (req, res) => {
   }
 };
 
+const generateAIPost = async (req, res) => {
+  try {
+    const { topic, platform } = req.body;
+    if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
+
+    const user = await User.findById(req.user._id);
+    const isAdmin = user.email === process.env.ADMIN_EMAIL;
+    const aiCredits = user.subscription?.aiCreditsRemaining || 0;
+
+    // Block if out of credits (Unless Admin)
+    if (aiCredits <= 0 && !isAdmin) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'AI generation quota reached for this billing period. Upgrade your plan to continue.' 
+      });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+    const prompt = `You are an expert social media manager. Write a professional, highly engaging post for ${platform} about the following topic: "${topic}". 
+    Format it perfectly for ${platform} (use appropriate length, tone, formatting, and a few relevant hashtags). 
+    Do not include introductory filler text like "Here is your post", just return the actual post content itself.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const generatedText = response.text();
+
+    // Deduct Credit
+    if (!isAdmin) {
+      await User.findByIdAndUpdate(req.user._id, {
+        $inc: { 'subscription.aiCreditsRemaining': -1 }
+      });
+    }
+
+    res.status(200).json({ success: true, data: generatedText });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Failed to generate AI content.' });
+  }
+};
+
+// ... [Keep the rest of your existing connection and callback controller logic identical down here] ...
 const linkConnection = async (req, res) => {
   const { platform } = req.params;
   const { token } = req.query; 
@@ -293,26 +355,6 @@ const deleteAccount = async (req, res) => {
     res.status(200).json({ success: true, message: 'Account and all data permanently deleted' });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Failed to delete account' });
-  }
-};
-
-const generateAIPost = async (req, res) => {
-  try {
-    const { topic, platform } = req.body;
-    if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
-
-    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
-    const prompt = `You are an expert social media manager. Write a professional, highly engaging post for ${platform} about the following topic: "${topic}". 
-    Format it perfectly for ${platform} (use appropriate length, tone, formatting, and a few relevant hashtags). 
-    Do not include introductory filler text like "Here is your post", just return the actual post content itself.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const generatedText = response.text();
-
-    res.status(200).json({ success: true, data: generatedText });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Failed to generate AI content.' });
   }
 };
 

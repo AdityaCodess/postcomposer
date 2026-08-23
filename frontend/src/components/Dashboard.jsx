@@ -13,7 +13,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const [isEditing, setIsEditing] = useState(false);
   const [editId, setEditId] = useState(null);
-  const [isAnnual, setIsAnnual] = useState(false); // Billing toggle state
+  const [isAnnual, setIsAnnual] = useState(false);
   
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +59,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
       if (res.data.success) {
-        setLinkedAccounts(res.data.data.linkedAccounts);
+        setLinkedAccounts(res.data.data.linkedAccounts || { twitter: false, linkedin: false, instagram: false });
         setUserProfile(res.data.data);
       }
     } catch (err) {
@@ -83,7 +83,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
-      setStatus({ type: 'error', message: 'Twitter media uploads are coming soon due to API updates.' });
+      setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused due to upstream API limits.' });
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
       return;
     }
@@ -130,6 +130,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
     }
   };
+
   const handleDeleteAccount = async () => {
     if (!window.confirm("CRITICAL WARNING: This will permanently delete your account and wipe all your deployment history from the database. This action cannot be undone. Proceed?")) return;
     try {
@@ -190,12 +191,25 @@ const Dashboard = ({ setIsAuthenticated }) => {
   };
 
   const handleConnectionClick = async (plat) => {
+    if (plat === 'instagram') {
+      setStatus({ type: 'error', message: 'Instagram publishing integration is coming soon.' });
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+      return;
+    }
+
+    if (plat === 'twitter' && userPlan === 'free') {
+      setStatus({ type: 'error', message: 'Twitter integration requires a Creator or Pro plan. Please upgrade.' });
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+      setActiveTab('billing');
+      return;
+    }
+
     if (linkedAccounts[plat]) {
       try {
         const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/connections/disconnect`, { platform: plat }, getAuthConfig());
         if (res.data.success) setLinkedAccounts(res.data.data);
       } catch (error) {
-        setStatus({ type: 'error', message: 'Failed to disconnect.' });
+        setStatus({ type: 'error', message: 'Failed to disconnect account.' });
         setTimeout(() => setStatus({ type: '', message: '' }), 4000);
       }
     } else {
@@ -209,6 +223,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
       
+      {/* Sidebar Navigation */}
       <aside className="w-64 border-r border-zinc-800/60 bg-[#0A0A0A] flex flex-col hidden md:flex">
         <div className="h-16 flex items-center px-6 border-b border-zinc-800/60 gap-3">
           <img src="/postifye.svg" alt="Postifye Logo" className="h-6 w-auto" />
@@ -250,6 +265,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
         </nav>
       </aside>
 
+      {/* Main Container */}
       <main className="flex-1 flex flex-col h-screen overflow-y-auto">
         <header className="md:hidden h-16 border-b border-zinc-800/60 flex items-center justify-between px-6">
           <div className="flex items-center gap-3">
@@ -266,6 +282,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
             </div>
           )}
 
+          {/* TAB 1: Composer */}
           {activeTab === 'compose' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-12rem)] animate-in fade-in duration-300">
               <section className="lg:col-span-7 flex flex-col gap-4">
@@ -286,7 +303,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   >
                     <option value="linkedin">LinkedIn (Free: 28/mo)</option>
                     <option value="twitter" disabled={userPlan === 'free'}>
-                      Twitter / X {userPlan === 'free' ? '🔒 (Pro Only)' : '(Media Coming Soon)'}
+                      Twitter / X {userPlan === 'free' ? '🔒 (Pro Only)' : '(Media Paused)'}
                     </option>
                     <option value="instagram" disabled>Instagram ✦ (Coming Soon)</option>
                   </select>
@@ -343,14 +360,14 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       <button 
                         onClick={() => {
                           if (platform === 'twitter') {
-                            setStatus({ type: 'error', message: 'Twitter media uploads are coming soon.' });
+                            setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused.' });
                             setTimeout(() => setStatus({ type: '', message: '' }), 4000);
                           } else {
                             fileInputRef.current?.click();
                           }
                         }}
                         className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${platform === 'twitter' ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                        title={platform === 'twitter' ? "Media currently unsupported for Twitter" : "Attach Media"}
+                        title={platform === 'twitter' ? "Media currently paused for Twitter" : "Attach Media"}
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                       </button>
@@ -418,6 +435,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
             </div>
           )}
 
+          {/* TAB 2: Post History */}
           {activeTab === 'history' && (
             <div className="h-full flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="flex items-center justify-between mb-6">
@@ -467,6 +485,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
             </div>
           )}
 
+          {/* TAB 3: Billing & Plans */}
           {activeTab === 'billing' && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="mb-10 text-center">
@@ -557,78 +576,152 @@ const Dashboard = ({ setIsAuthenticated }) => {
             </div>
           )}
 
+          {/* TAB 4: Account Settings */}
           {activeTab === 'settings' && (
-            <div className="max-w-2xl animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="mb-8">
+            <div className="max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-300 space-y-6">
+              <div>
                 <h2 className="text-xl font-semibold text-zinc-100">Account Settings</h2>
-                <p className="text-sm text-zinc-500 mt-1">Manage your profile, linked accounts, and session data.</p>
+                <p className="text-sm text-zinc-500 mt-1">Manage your active subscription, connected networks, and credentials.</p>
               </div>
 
-              <div className="space-y-6">
-                <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
-                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-1">Username</label>
-                      <div className="bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm">
-                        {userProfile?.username || 'Loading...'}
-                      </div>
+              {/* Subscription & Usage Overview */}
+              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider">Subscription & Quota</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Your monthly posting and AI credit allowances.</p>
+                  </div>
+                  <span className="text-xs uppercase font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    {userPlan} Plan
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
+                    <span className="text-xs text-zinc-500">AI Generation Credits</span>
+                    <p className="text-lg font-bold text-zinc-200 mt-1">
+                      {userProfile?.subscription?.aiCreditsRemaining ?? 5} <span className="text-xs font-normal text-zinc-500">credits left</span>
+                    </p>
+                  </div>
+                  <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
+                    <span className="text-xs text-zinc-500">LinkedIn Usage This Cycle</span>
+                    <p className="text-lg font-bold text-zinc-200 mt-1">
+                      {userProfile?.subscription?.linkedinPostsThisMonth ?? 0} {userPlan === 'free' ? '/ 28 posts' : 'posts published'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Profile Information */}
+              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">Username</label>
+                    <div className="bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm">
+                      {userProfile?.username || 'Loading...'}
                     </div>
-                    <div>
-                      <label className="block text-xs text-zinc-500 mb-1">Email Address</label>
-                      <div className="bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm">
-                        {userProfile?.email || 'Loading...'}
-                      </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-zinc-500 mb-1">Email Address</label>
+                    <div className="bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm">
+                      {userProfile?.email || 'Loading...'}
                     </div>
                   </div>
                 </div>
+              </div>
 
-                <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
-                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Linked Social Accounts</h3>
-                  <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
-                    Connect your social media profiles to enable cross-platform publishing. 
-                  </p>
-                  <div className="space-y-3">
-                    {Object.keys(linkedAccounts).map((plat) => (
-                      <div key={plat} className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${linkedAccounts[plat] ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
-                          <span className="capitalize text-sm font-medium text-zinc-300">{plat}</span>
-                        </div>
-                        <button 
-                          onClick={() => handleConnectionClick(plat)}
-                          className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${linkedAccounts[plat] ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_10px_rgba(79,70,229,0.2)]'}`}
-                        >
-                          {linkedAccounts[plat] ? 'Disconnect' : 'Connect'}
-                        </button>
+              {/* Linked Social Accounts */}
+              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-2">Connected Networks</h3>
+                <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                  Authenticate your target platforms using secure OAuth 2.0 PKCE handshakes.
+                </p>
+                <div className="space-y-3">
+                  
+                  {/* LinkedIn Connection Card */}
+                  <div className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${linkedAccounts.linkedin ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
+                      <div>
+                        <span className="text-sm font-medium text-zinc-200">LinkedIn</span>
+                        <p className="text-[11px] text-zinc-500">Live feed posting & image uploads enabled</p>
                       </div>
-                    ))}
+                    </div>
+                    <button 
+                      onClick={() => handleConnectionClick('linkedin')}
+                      className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${linkedAccounts.linkedin ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-[#0077b5] hover:bg-[#006396] text-white shadow-[0_0_10px_rgba(0,119,181,0.3)]'}`}
+                    >
+                      {linkedAccounts.linkedin ? 'Disconnect' : 'Connect'}
+                    </button>
                   </div>
-                </div>
 
-                <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
-                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Session</h3>
-                  <button 
-                    onClick={handleLogout} 
-                    className="w-full bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors text-left flex items-center justify-between"
-                  >
-                    Log Out of Current Session
-                    <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-                  </button>
-                </div>
+                  {/* Twitter / X Connection Card */}
+                  <div className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${linkedAccounts.twitter ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
+                      <div>
+                        <span className="text-sm font-medium text-zinc-200">Twitter / X</span>
+                        <p className="text-[11px] text-zinc-500">
+                          {userPlan === 'free' ? 'Requires Creator or Pro subscription' : 'API v2 text posting enabled'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => handleConnectionClick('twitter')}
+                      className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${
+                        linkedAccounts.twitter 
+                          ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' 
+                          : userPlan === 'free'
+                          ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                          : 'bg-zinc-100 hover:bg-white text-zinc-950 shadow-[0_0_10px_rgba(255,255,255,0.2)]'
+                      }`}
+                    >
+                      {linkedAccounts.twitter ? 'Disconnect' : userPlan === 'free' ? 'Unlock Plan' : 'Connect'}
+                    </button>
+                  </div>
 
-                <div className="bg-red-950/10 border border-red-900/30 rounded-xl overflow-hidden shadow-lg p-6">
-                  <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</h3>
-                  <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
-                    Permanently remove your account and all associated post data. This action is irreversible. 
-                  </p>
-                  <button 
-                    onClick={handleDeleteAccount}
-                    className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-semibold text-sm px-6 py-2.5 rounded-lg transition-all w-full md:w-auto"
-                  >
-                    Delete Account
-                  </button>
+                  {/* Instagram Connection Card */}
+                  <div className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4 opacity-60">
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-zinc-700"></div>
+                      <div>
+                        <span className="text-sm font-medium text-zinc-200">Instagram</span>
+                        <p className="text-[11px] text-zinc-500">Meta Graph API integration in active development</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono font-semibold px-3 py-1 bg-zinc-800 text-zinc-400 rounded border border-zinc-700">
+                      COMING SOON
+                    </span>
+                  </div>
+
                 </div>
+              </div>
+
+              {/* Session Actions */}
+              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Session</h3>
+                <button 
+                  onClick={handleLogout} 
+                  className="w-full bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors text-left flex items-center justify-between"
+                >
+                  Log Out of Current Session
+                  <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </button>
+              </div>
+
+              {/* Danger Zone */}
+              <div className="bg-red-950/10 border border-red-900/30 rounded-xl overflow-hidden shadow-lg p-6">
+                <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</h3>
+                <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
+                  Permanently remove your account and all associated post data. This action is irreversible. 
+                </p>
+                <button 
+                  onClick={handleDeleteAccount}
+                  className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-semibold text-sm px-6 py-2.5 rounded-lg transition-all w-full md:w-auto"
+                >
+                  Delete Account
+                </button>
               </div>
             </div>
           )}
