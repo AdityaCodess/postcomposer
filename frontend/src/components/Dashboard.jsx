@@ -130,6 +130,16 @@ const Dashboard = ({ setIsAuthenticated }) => {
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
     }
   };
+  const handleDeleteAccount = async () => {
+    if (!window.confirm("CRITICAL WARNING: This will permanently delete your account and wipe all your deployment history from the database. This action cannot be undone. Proceed?")) return;
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
+      handleLogout();
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Failed to delete account.' });
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+    }
+  };
 
   const handlePublish = async (e) => {
     e.preventDefault();
