@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema({
     state: { type: String },
     codeVerifier: { type: String },
   },
-  // NEW: LinkedIn Storage
+  // LinkedIn Storage
   linkedinTokens: {
     accessToken: { type: String },
   },
@@ -37,6 +37,33 @@ const userSchema = new mongoose.Schema({
   },
   linkedinId: { 
     type: String // Stores the user's unique URN required for posting
+  },
+  // NEW: Subscription & Quota Tracking
+  subscription: {
+    plan: { 
+      type: String, 
+      enum: ['free', 'creator', 'pro'], 
+      default: 'free' 
+    },
+    status: { 
+      type: String, 
+      enum: ['active', 'canceled', 'past_due'], 
+      default: 'active' 
+    },
+    aiCreditsRemaining: { 
+      type: Number, 
+      default: 10 // Updated free tier quota to 10
+    },
+    linkedinPostsThisMonth: { 
+      type: Number, 
+      default: 0 
+    },
+    billingCycleReset: { 
+      type: Date, 
+      default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) 
+    },
+    stripeCustomerId: { type: String, default: null },
+    stripeSubscriptionId: { type: String, default: null }
   }
 }, { timestamps: true });
 

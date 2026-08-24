@@ -178,8 +178,22 @@ const generateAIPost = async (req, res) => {
     if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
 
     const user = await User.findById(req.user._id);
-    const isAdmin = user.email === process.env.ADMIN_EMAIL;
-    const aiCredits = user.subscription?.aiCreditsRemaining || 0;
+    
+    // Bulletproof Admin Check
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const userEmail = (user.email || '').trim().toLowerCase();
+    const isAdmin = userEmail === adminEmail;
+
+    // Ensure subscription object exists on the user document
+    if (!user.subscription) {
+      user.subscription = { plan: 'free', aiCreditsRemaining: 10, linkedinPostsThisMonth: 0 };
+    }
+    
+    let aiCredits = user.subscription.aiCreditsRemaining;
+    if (aiCredits === undefined || aiCredits === null) {
+      aiCredits = 10;
+      user.subscription.aiCreditsRemaining = 10;
+    }
 
     // Block if out of credits (Unless Admin)
     if (aiCredits <= 0 && !isAdmin) {
@@ -198,20 +212,19 @@ const generateAIPost = async (req, res) => {
     const response = await result.response;
     const generatedText = response.text();
 
-    // Deduct Credit
+    // Deduct Credit and save explicitly to guarantee Mongoose persists it
     if (!isAdmin) {
-      await User.findByIdAndUpdate(req.user._id, {
-        $inc: { 'subscription.aiCreditsRemaining': -1 }
-      });
+      user.subscription.aiCreditsRemaining = Math.max(0, aiCredits - 1);
+      await user.save();
     }
 
-    res.status(200).json({ success: true, data: generatedText });
+    res.status(200).json({ success: true, data: generatedText, remainingCredits: user.subscription.aiCreditsRemaining });
   } catch (error) {
+    console.error("AI Generation Error:", error);
     res.status(500).json({ success: false, message: 'Failed to generate AI content.' });
   }
 };
 
-// ... [Keep the rest of your existing connection and callback controller logic identical down here] ...
 const linkConnection = async (req, res) => {
   const { platform } = req.params;
   const { token } = req.query; 

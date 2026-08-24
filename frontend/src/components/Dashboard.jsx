@@ -181,6 +181,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
         setContent(res.data.data);
         setShowAI(false);
         setAiPrompt('');
+        await fetchUserData(); 
       }
     } catch (error) {
       setStatus({ type: 'error', message: error.response?.data?.message || 'AI Generation failed. Check your plan quota.' });
@@ -379,6 +380,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       >
                         ✨ <span className="hidden sm:inline font-medium">Auto-Generate</span>
                       </button>
+
+                      {/* Live AI Credits Remaining Indicator */}
+                      <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1">
+                         {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
+                      </span>
                       
                       <span className="text-xs font-mono text-zinc-600 ml-2">
                         <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
@@ -520,7 +526,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 28 LinkedIn Posts / mo</li>
                     <li className="flex items-center gap-2 text-zinc-600"><svg className="w-4 h-4 text-zinc-800" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg> 0 Twitter Posts</li>
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 5 AI Credits / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 10 AI Credits / mo</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> LinkedIn Image Uploads</li>
                   </ul>
                   <button disabled className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-800 text-zinc-500 cursor-not-allowed">
@@ -600,7 +606,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
                     <span className="text-xs text-zinc-500">AI Generation Credits</span>
                     <p className="text-lg font-bold text-zinc-200 mt-1">
-                      {userProfile?.subscription?.aiCreditsRemaining ?? 5} <span className="text-xs font-normal text-zinc-500">credits left</span>
+                      {userProfile?.subscription?.aiCreditsRemaining ?? 10} <span className="text-xs font-normal text-zinc-500">credits left</span>
                     </p>
                   </div>
                   <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
