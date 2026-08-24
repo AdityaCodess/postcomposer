@@ -233,7 +233,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
         <nav className="flex-1 px-4 py-6 space-y-2">
           <button 
-            onClick={() => { setActiveTab('compose'); resetComposer(); }}
+            onClick={() => setActiveTab('compose')}
             className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'compose' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -385,7 +385,18 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1">
                          {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
                       </span>
-                      
+
+                      {/* Clear Button */}
+                      {(content || mediaPreview) && (
+                        <button 
+                          onClick={resetComposer}
+                          className="text-xs font-medium text-zinc-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-red-500/10 hover:text-red-400 border border-zinc-700/60 hover:border-red-500/30 px-2.5 py-1 rounded-md transition-all ml-1"
+                          title="Clear Composer"
+                        >
+                          Clear
+                        </button>
+                      )}  
+                                            
                       <span className="text-xs font-mono text-zinc-600 ml-2">
                         <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
                       </span>
