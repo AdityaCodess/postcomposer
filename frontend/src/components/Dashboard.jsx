@@ -28,7 +28,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const [postHistory, setPostHistory] = useState([]);
 
-  // NEW: Dashboard Password Reset States
+  // Dashboard Password Reset States
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [resetOtp, setResetOtp] = useState('');
@@ -225,7 +225,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  // NEW: Dashboard Password Change Handlers
+  // Dashboard Password Change Handlers
   const handleRequestPasswordChange = async () => {
     setIsLoading(true);
     try {
@@ -264,8 +264,13 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  const userPlan = userProfile?.subscription?.plan || 'free';
+const userPlan = userProfile?.subscription?.plan || 'free';
 
+  const getLinkedinLimitText = () => {
+    if (userPlan === 'Agentic Pro') return '/ 10,000 posts';
+    if (userPlan === 'creator') return '/ 700 posts';
+    return '/ 28 posts';
+  };
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
       
@@ -427,7 +432,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       </button>
 
                       <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1">
-                        ✨ {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
+                         {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
                       </span>
 
                       {(content || mediaPreview) && (
@@ -604,7 +609,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 700 LinkedIn Posts / mo</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlock Twitter / X Publishing</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 150 Twitter Posts / mo</li>
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1000 AI Credits / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 AI Credits / mo</li>
                   </ul>
                   <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-lg shadow-indigo-500/20">
                     Upgrade to Creator
@@ -612,27 +617,26 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 </div>
 
                 {/* Agentic Pro Plan */}
-              <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
-                <h3 className="text-lg font-semibold text-zinc-200 mb-2">Agentic Pro</h3>
-                <div className="mb-6 flex flex-col">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-white">{isAnnual ? '₹2,999' : '₹3,499'}</span>
-                    <span className="text-sm text-zinc-500 line-through">₹4,999</span>
-                    <span className="text-sm text-zinc-500">/mo</span>
+                <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
+                  <h3 className="text-lg font-semibold text-zinc-200 mb-2">Agentic Pro</h3>
+                  <div className="mb-6 flex flex-col">
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-bold text-white">{isAnnual ? '₹2,999' : '₹3,499'}</span>
+                      <span className="text-sm text-zinc-500 line-through">₹4,999</span>
+                      <span className="text-sm text-zinc-500">/mo</span>
+                    </div>
+                    <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹35,988 yearly' : 'Billed monthly'}</span>
                   </div>
-                  <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹35,988 yearly' : 'Billed monthly'}</span>
+                  <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 10,000 LinkedIn Posts / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 Twitter Posts / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 30,000 AI Credits / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited Connected Profiles</li>
+                  </ul>
+                  <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors">
+                    Upgrade to Pro
+                  </button>
                 </div>
-                <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
-                  {/* UPDATED: 10,000 LinkedIn Posts and 30,000 AI Credits */}
-                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 10,000 LinkedIn Posts / mo</li>
-                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 Twitter Posts / mo</li>
-                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 30,000 AI Credits / mo</li>
-                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited Connected Profiles</li>
-                </ul>
-                <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors">
-                  Upgrade to Pro
-                </button>
-              </div>
               </div>
             </div>
           )}
@@ -645,34 +649,33 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 <p className="text-sm text-zinc-500 mt-1">Manage your active subscription, connected networks, and credentials.</p>
               </div>
 
-              {/* Subscription & Usage Overview */}
-              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
-                <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider">Subscription & Quota</h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">Your monthly posting and AI credit allowances.</p>
-                  </div>
-                  <span className="text-xs uppercase font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                    {userPlan} Plan
-                  </span>
+            {/* Subscription & Usage Overview */}
+            <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+              <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider">Subscription & Quota</h3>
+                  <p className="text-xs text-zinc-500 mt-0.5">Your monthly posting and AI credit allowances.</p>
                 </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
-                    <span className="text-xs text-zinc-500">AI Generation Credits</span>
-                    <p className="text-lg font-bold text-zinc-200 mt-1">
-                      {userProfile?.subscription?.aiCreditsRemaining ?? 10} <span className="text-xs font-normal text-zinc-500">credits left</span>
-                    </p>
-                  </div>
-                  <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
-                    <span className="text-xs text-zinc-500">LinkedIn Usage This Cycle</span>
-                    <p className="text-lg font-bold text-zinc-200 mt-1">
-                      {userProfile?.subscription?.linkedinPostsThisMonth ?? 0} {userPlan === 'free' ? '/ 28 posts' : 'posts published'}
-                    </p>
-                  </div>
+                <span className="text-xs uppercase font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  {userPlan} PLAN
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
+                  <span className="text-xs text-zinc-500">AI Generation Credits</span>
+                  <p className="text-lg font-bold text-zinc-200 mt-1">
+                    {userProfile?.subscription?.aiCreditsRemaining ?? 10} <span className="text-xs font-normal text-zinc-500">credits left</span>
+                  </p>
+                </div>
+                <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
+                  <span className="text-xs text-zinc-500">LinkedIn Usage This Cycle</span>
+                  <p className="text-lg font-bold text-zinc-200 mt-1">
+                    {userProfile?.subscription?.linkedinPostsThisMonth ?? 0} <span className="text-xs font-normal text-zinc-500">{getLinkedinLimitText()}</span>
+                  </p>
                 </div>
               </div>
-
+            </div>
               {/* Profile Information */}
               <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                 <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>

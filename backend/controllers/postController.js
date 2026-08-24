@@ -31,7 +31,7 @@ const createPost = async (req, res) => {
     const user = await User.findById(req.user._id);
     
     // SUBSCRIPTION & ADMIN CHECK
-    const isAdmin = user.email === process.env.ADMIN_EMAIL;
+    const isAdmin = user.email === process.env.ADMIN_EMAIL.trim().toLowerCase() ;
     const plan = user.subscription?.plan || 'free';
     const linkedinCount = user.subscription?.linkedinPostsThisMonth || 0;
 
@@ -239,65 +239,6 @@ const generateAIPost = async (req, res) => {
   }
 };
 
-const generateAIPost = async (req, res) => {
-  try {
-    const { topic, platform } = req.body;
-    if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
-
-    const user = await User.findById(req.user._id);
-    const plan = user.subscription?.plan || 'free';
-    
-    // Bulletproof Admin & Agentic Pro Check (Unlimited AI generation)
-    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
-    const userEmail = (user.email || '').trim().toLowerCase();
-    const isAdmin = userEmail === adminEmail;
-    const isUnlimited = plan === 'Agentic Pro' || isAdmin;
-
-    // Ensure subscription object exists
-    if (!user.subscription) {
-      user.subscription = { plan: 'free', aiCreditsRemaining: 10, linkedinPostsThisMonth: 0 };
-    }
-    
-    // Initialize credits based on plan if missing
-    let aiCredits = user.subscription.aiCreditsRemaining;
-    if (aiCredits === undefined || aiCredits === null) {
-      aiCredits = plan === 'creator' ? 1000 : 10;
-      user.subscription.aiCreditsRemaining = aiCredits;
-    }
-
-    // Block if out of credits (Unless Unlimited)
-    if (aiCredits <= 0 && !isUnlimited) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'AI generation quota reached for this billing period. Upgrade your plan to continue.' 
-      });
-    }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
-    const prompt = `You are an expert social media manager. Write a professional, highly engaging post for ${platform} about the following topic: "${topic}". 
-    Format it perfectly for ${platform} (use appropriate length, tone, formatting, and a few relevant hashtags). 
-    Do not include introductory filler text like "Here is your post", just return the actual post content itself.`;
-
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const generatedText = response.text();
-
-    // Deduct Credit and save explicitly (Unless Unlimited)
-    if (!isUnlimited) {
-      user.subscription.aiCreditsRemaining = Math.max(0, aiCredits - 1);
-      await user.save();
-    }
-
-    res.status(200).json({ 
-      success: true, 
-      data: generatedText, 
-      remainingCredits: isUnlimited ? '∞' : user.subscription.aiCreditsRemaining 
-    });
-  } catch (error) {
-    console.error("AI Generation Error:", error);
-    res.status(500).json({ success: false, message: 'Failed to generate AI content.' });
-  }
-};
 
 const linkConnection = async (req, res) => {
   const { platform } = req.params;
@@ -429,7 +370,26 @@ const disconnectConnection = async (req, res) => {
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('-password');
-    res.status(200).json({ success: true, data: user });
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const userEmail = (user.email || '').trim().toLowerCase();
+    const isAdmin = adminEmail && (userEmail === adminEmail);
+
+    // Convert to plain object
+    let userData = user.toObject();
+
+    // If admin, dynamically grant Agentic Pro specs and infinite-feeling quotas if not already set
+    if (isAdmin) {
+      userData.subscription = {
+        ...userData.subscription,
+        plan: 'Agentic Pro',
+        aiCreditsRemaining: userData.subscription?.aiCreditsRemaining ?? 30000,
+        linkedinPostsThisMonth: userData.subscription?.linkedinPostsThisMonth ?? 0
+      };
+    }
+
+    res.status(200).json({ success: true, data: userData });
   } catch (error) {
     res.status(500).json({ success: false, message: 'Server Error' });
   }
