@@ -1,5 +1,6 @@
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
 const { sendEmailOTP } = require('../utils/mailer');
@@ -43,30 +44,29 @@ const login = async (req, res) => {
 // @route   POST /api/auth/google
 const googleLogin = async (req, res) => {
   try {
-
     const { tokenId } = req.body;
     
     const ticket = await googleClient.verifyIdToken({
       idToken: tokenId,
       audience: process.env.GOOGLE_CLIENT_ID
     });
-
-   
     
     const { email, name, sub: googleId } = ticket.getPayload();
 
     let user = await User.findOne({ email });
 
     if (!user) {
-      // Generate a fallback username based on their Google name or email, plus random numbers
       const baseUsername = name ? name.replace(/\s+/g, '').toLowerCase() : email.split('@')[0];
       const randomString = Math.floor(1000 + Math.random() * 9000).toString();
+      
+      // FIX: Generate a cryptographically secure 64-character hex password
+      const secureRandomPassword = crypto.randomBytes(32).toString('hex');
       
       user = await User.create({ 
         email, 
         googleId,
-        username: `${baseUsername}${randomString}` ,
-        password: Math.random().toString(36).slice(-8) // Random password for Google users
+        username: `${baseUsername}${randomString}`,
+        password: secureRandomPassword 
       });
     }
 
@@ -77,14 +77,11 @@ const googleLogin = async (req, res) => {
       message: 'Google login successful',
       data: { token, user: { id: user._id, username: user.username, email: user.email } }
     });
-
     
   } catch (error) {
     console.error('Google auth error:', error);
     return res.status(500).json({ success: false, message: 'Google authentication failed' });
   }
-   
-
 };
 
 // @desc    Send OTP for registration
@@ -98,7 +95,6 @@ const sendOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email is already registered' });
     }
 
-    // New check: Block if username is already in use
     const existingUsername = await User.findOne({ username });
     if (existingUsername) {
       return res.status(400).json({ success: false, message: 'Username is already taken' });
@@ -150,4 +146,64 @@ const signup = async (req, res) => {
   }
 };
 
-module.exports = { login, googleLogin, sendOtp, signup };
+// @desc    Send OTP for Password Reset
+// @route   POST /api/auth/forgot-password
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    // Reuse the exact same Otp model and mailer utility you already built
+    await Otp.deleteMany({ email });
+    await Otp.create({ email, otp: otpCode });
+    await sendEmailOTP(email, otpCode);
+
+    return res.status(200).json({ success: true, message: 'Password reset OTP sent to email' });
+  } catch (error) {
+    console.error('Forgot Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Error sending reset OTP' });
+  }
+};
+
+// @desc    Verify OTP and Reset Password
+// @route   POST /api/auth/reset-password
+const resetPassword = async (req, res) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+
+    const otpRecord = await Otp.findOne({ email });
+    
+    if (!otpRecord) {
+      return res.status(400).json({ success: false, message: 'OTP expired or not found' });
+    }
+
+    if (otpRecord.otp !== otp) {
+      return res.status(400).json({ success: false, message: 'Invalid OTP' });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Update password. Mongoose pre-save hook will hash this automatically (just like in signup).
+    user.password = newPassword;
+    await user.save();
+
+    // Clean up OTP
+    await Otp.deleteMany({ email });
+
+    return res.status(200).json({ success: true, message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset Password Error:', error);
+    return res.status(500).json({ success: false, message: 'Error resetting password' });
+  }
+};
+
+module.exports = { login, googleLogin, sendOtp, signup, forgotPassword, resetPassword };

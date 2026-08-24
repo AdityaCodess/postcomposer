@@ -15,6 +15,14 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  resetOtp: {
+    type: String,
+    default: null
+  },
+  resetOtpExpiry: {
+    type: Date,
+    default: null
+  },
   linkedAccounts: {
     twitter: { type: Boolean, default: false },
     linkedin: { type: Boolean, default: false },
@@ -38,7 +46,6 @@ const userSchema = new mongoose.Schema({
   linkedinId: { 
     type: String // Stores the user's unique URN required for posting
   },
-  // NEW: Subscription & Quota Tracking
   subscription: {
     plan: { 
       type: String, 
