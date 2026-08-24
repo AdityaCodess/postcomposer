@@ -44,16 +44,22 @@ const createPost = async (req, res) => {
     if (platform === 'twitter' && plan === 'free' && !isAdmin) {
       return res.status(403).json({ 
         success: false, 
-        message: 'Twitter publishing is reserved for Creator & Pro plans. Upgrade to unlock.' 
+        message: 'Twitter publishing is reserved for Creator & Agentic Pro plans. Upgrade to unlock.' 
       });
     }
 
-    // 3. Enforce 28 LinkedIn Posts Limit on Free Tier (Unless Admin)
-    if (platform === 'linkedin' && plan === 'free' && linkedinCount >= 28 && !isAdmin) {
-      return res.status(403).json({ 
-        success: false, 
-        message: 'You have reached your 28 free LinkedIn posts for this month. Upgrade to continue publishing!' 
-      });
+    // 3. UPDATED: Enforce LinkedIn Limits (Unless Admin)
+    if (platform === 'linkedin' && !isAdmin) {
+      let limit = 28; // Default free
+      if (plan === 'creator') limit = 700;
+      if (plan === 'Agentic Pro') limit = 10000;
+      
+      if (linkedinCount >= limit) {
+        return res.status(403).json({ 
+          success: false, 
+          message: `You have reached your limit of ${limit} LinkedIn posts this month. Please upgrade your plan to continue publishing.` 
+        });
+      }
     }
 
     // ==========================================
@@ -178,21 +184,25 @@ const generateAIPost = async (req, res) => {
     if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
 
     const user = await User.findById(req.user._id);
+    const plan = user.subscription?.plan || 'free';
     
-    // Bulletproof Admin Check
+    // UPDATED: Only Admin is truly unlimited now
     const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
     const userEmail = (user.email || '').trim().toLowerCase();
     const isAdmin = userEmail === adminEmail;
 
-    // Ensure subscription object exists on the user document
+    // Ensure subscription object exists
     if (!user.subscription) {
       user.subscription = { plan: 'free', aiCreditsRemaining: 10, linkedinPostsThisMonth: 0 };
     }
     
+    // UPDATED: Initialize credits based on new plan caps
     let aiCredits = user.subscription.aiCreditsRemaining;
     if (aiCredits === undefined || aiCredits === null) {
-      aiCredits = 10;
-      user.subscription.aiCreditsRemaining = 10;
+      if (plan === 'Agentic Pro') aiCredits = 30000;
+      else if (plan === 'creator') aiCredits = 1000;
+      else aiCredits = 10;
+      user.subscription.aiCreditsRemaining = aiCredits;
     }
 
     // Block if out of credits (Unless Admin)
@@ -212,13 +222,77 @@ const generateAIPost = async (req, res) => {
     const response = await result.response;
     const generatedText = response.text();
 
-    // Deduct Credit and save explicitly to guarantee Mongoose persists it
+    // Deduct Credit and save explicitly (Unless Admin)
     if (!isAdmin) {
       user.subscription.aiCreditsRemaining = Math.max(0, aiCredits - 1);
       await user.save();
     }
 
-    res.status(200).json({ success: true, data: generatedText, remainingCredits: user.subscription.aiCreditsRemaining });
+    res.status(200).json({ 
+      success: true, 
+      data: generatedText, 
+      remainingCredits: isAdmin ? '∞' : user.subscription.aiCreditsRemaining 
+    });
+  } catch (error) {
+    console.error("AI Generation Error:", error);
+    res.status(500).json({ success: false, message: 'Failed to generate AI content.' });
+  }
+};
+
+const generateAIPost = async (req, res) => {
+  try {
+    const { topic, platform } = req.body;
+    if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
+
+    const user = await User.findById(req.user._id);
+    const plan = user.subscription?.plan || 'free';
+    
+    // Bulletproof Admin & Agentic Pro Check (Unlimited AI generation)
+    const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    const userEmail = (user.email || '').trim().toLowerCase();
+    const isAdmin = userEmail === adminEmail;
+    const isUnlimited = plan === 'Agentic Pro' || isAdmin;
+
+    // Ensure subscription object exists
+    if (!user.subscription) {
+      user.subscription = { plan: 'free', aiCreditsRemaining: 10, linkedinPostsThisMonth: 0 };
+    }
+    
+    // Initialize credits based on plan if missing
+    let aiCredits = user.subscription.aiCreditsRemaining;
+    if (aiCredits === undefined || aiCredits === null) {
+      aiCredits = plan === 'creator' ? 1000 : 10;
+      user.subscription.aiCreditsRemaining = aiCredits;
+    }
+
+    // Block if out of credits (Unless Unlimited)
+    if (aiCredits <= 0 && !isUnlimited) {
+      return res.status(403).json({ 
+        success: false, 
+        message: 'AI generation quota reached for this billing period. Upgrade your plan to continue.' 
+      });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
+    const prompt = `You are an expert social media manager. Write a professional, highly engaging post for ${platform} about the following topic: "${topic}". 
+    Format it perfectly for ${platform} (use appropriate length, tone, formatting, and a few relevant hashtags). 
+    Do not include introductory filler text like "Here is your post", just return the actual post content itself.`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const generatedText = response.text();
+
+    // Deduct Credit and save explicitly (Unless Unlimited)
+    if (!isUnlimited) {
+      user.subscription.aiCreditsRemaining = Math.max(0, aiCredits - 1);
+      await user.save();
+    }
+
+    res.status(200).json({ 
+      success: true, 
+      data: generatedText, 
+      remainingCredits: isUnlimited ? '∞' : user.subscription.aiCreditsRemaining 
+    });
   } catch (error) {
     console.error("AI Generation Error:", error);
     res.status(500).json({ success: false, message: 'Failed to generate AI content.' });

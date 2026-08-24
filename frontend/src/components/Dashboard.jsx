@@ -601,37 +601,38 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹7,788 yearly' : 'Billed monthly'}</span>
                   </div>
                   <ul className="space-y-3 mb-8 text-sm text-zinc-300 flex-1">
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 1,000 LinkedIn Posts / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 700 LinkedIn Posts / mo</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlock Twitter / X Publishing</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 150 Twitter Posts / mo</li>
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 100 AI Credits / mo</li>
+                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1000 AI Credits / mo</li>
                   </ul>
                   <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-lg shadow-indigo-500/20">
                     Upgrade to Creator
                   </button>
                 </div>
 
-                {/* Pro Plan */}
-                <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
-                  <h3 className="text-lg font-semibold text-zinc-200 mb-2">Agency Pro</h3>
-                  <div className="mb-6 flex flex-col">
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-3xl font-bold text-white">{isAnnual ? '₹2,999' : '₹3,499'}</span>
-                      <span className="text-sm text-zinc-500 line-through">₹4,999</span>
-                      <span className="text-sm text-zinc-500">/mo</span>
-                    </div>
-                    <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹35,988 yearly' : 'Billed monthly'}</span>
+                {/* Agentic Pro Plan */}
+              <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
+                <h3 className="text-lg font-semibold text-zinc-200 mb-2">Agentic Pro</h3>
+                <div className="mb-6 flex flex-col">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-3xl font-bold text-white">{isAnnual ? '₹2,999' : '₹3,499'}</span>
+                    <span className="text-sm text-zinc-500 line-through">₹4,999</span>
+                    <span className="text-sm text-zinc-500">/mo</span>
                   </div>
-                  <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited LinkedIn Posts</li>
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 Twitter Posts / mo</li>
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited AI Credits</li>
-                    <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited Connected Profiles</li>
-                  </ul>
-                  <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors">
-                    Upgrade to Pro
-                  </button>
+                  <span className="text-xs text-zinc-500 mt-1">{isAnnual ? 'Billed ₹35,988 yearly' : 'Billed monthly'}</span>
                 </div>
+                <ul className="space-y-3 mb-8 text-sm text-zinc-400 flex-1">
+                  {/* UPDATED: 10,000 LinkedIn Posts and 30,000 AI Credits */}
+                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Up to 10,000 LinkedIn Posts / mo</li>
+                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 Twitter Posts / mo</li>
+                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 30,000 AI Credits / mo</li>
+                  <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited Connected Profiles</li>
+                </ul>
+                <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors">
+                  Upgrade to Pro
+                </button>
+              </div>
               </div>
             </div>
           )}
