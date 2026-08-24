@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const User = require('../models/User');
 const Otp = require('../models/Otp');
 const { sendEmailOTP } = require('../utils/mailer');
-
+const bcrypt = require('bcryptjs');
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const generateToken = (id) => {
@@ -129,7 +129,15 @@ const signup = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Invalid OTP' });
     }
 
-    const newUser = await User.create({ username, email, password });
+    // 🔒 HASH THE PASSWORD BEFORE SAVING
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const newUser = await User.create({ 
+      username, 
+      email, 
+      password: hashedPassword // Save the encrypted string!
+    });
     
     await Otp.deleteMany({ email });
     
@@ -192,8 +200,9 @@ const resetPassword = async (req, res) => {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
-    // Update password. Mongoose pre-save hook will hash this automatically (just like in signup).
-    user.password = newPassword;
+    // 🔒 HASH THE NEW PASSWORD BEFORE SAVING
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
     await user.save();
 
     // Clean up OTP

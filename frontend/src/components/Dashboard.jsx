@@ -28,6 +28,12 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const [postHistory, setPostHistory] = useState([]);
 
+  // NEW: Dashboard Password Reset States
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordStep, setPasswordStep] = useState(1);
+  const [resetOtp, setResetOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const linked = params.get('linked');
@@ -219,6 +225,45 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
+  // NEW: Dashboard Password Change Handlers
+  const handleRequestPasswordChange = async () => {
+    setIsLoading(true);
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/auth/forgot-password`, { email: userProfile.email });
+      setStatus({ type: 'success', message: 'OTP sent to your email.' });
+      setPasswordStep(2);
+    } catch (error) {
+      setStatus({ type: 'error', message: error.response?.data?.message || 'Failed to send OTP.' });
+      setIsChangingPassword(false);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleConfirmPasswordChange = async (e) => {
+    e.preventDefault();
+    setIsLoading(true);
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/auth/reset-password`, {
+        email: userProfile.email,
+        otp: resetOtp,
+        newPassword
+      });
+      setStatus({ type: 'success', message: 'Password updated successfully!' });
+      
+      // Reset the password UI state completely
+      setPasswordStep(1);
+      setIsChangingPassword(false);
+      setResetOtp('');
+      setNewPassword('');
+    } catch (error) {
+      setStatus({ type: 'error', message: error.response?.data?.message || 'Invalid OTP or failed to update.' });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+    }
+  };
+
   const userPlan = userProfile?.subscription?.plan || 'free';
 
   return (
@@ -381,22 +426,20 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         ✨ <span className="hidden sm:inline font-medium">Auto-Generate</span>
                       </button>
 
-                      {/* Live AI Credits Remaining Indicator */}
                       <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1">
-                         {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
+                        ✨ {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
                       </span>
 
-                      {/* Clear Button */}
                       {(content || mediaPreview) && (
                         <button 
                           onClick={resetComposer}
-                          className="text-xs font-medium text-zinc-400 bg-indigo-500/10 border border-indigo-500/20 hover:bg-red-500/10 hover:text-red-400 border border-zinc-700/60 hover:border-red-500/30 px-2.5 py-1 rounded-md transition-all ml-1"
+                          className="text-xs font-medium text-zinc-400 bg-zinc-800/60 hover:bg-red-500/10 hover:text-red-400 border border-zinc-700/60 hover:border-red-500/30 px-2.5 py-1 rounded-md transition-all ml-1"
                           title="Clear Composer"
                         >
                           Clear
                         </button>
-                      )}  
-                                            
+                      )}
+                      
                       <span className="text-xs font-mono text-zinc-600 ml-2">
                         <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
                       </span>
@@ -646,6 +689,74 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Security / Password Section */}
+              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Security</h3>
+                
+                {!isChangingPassword ? (
+                  <button 
+                    onClick={() => { setIsChangingPassword(true); handleRequestPasswordChange(); }}
+                    className="bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center justify-between w-full md:w-auto"
+                  >
+                    Change Password (via Email OTP)
+                  </button>
+                ) : (
+                  <form onSubmit={handleConfirmPasswordChange} className="space-y-4 animate-in fade-in bg-[#0A0A0A] p-4 rounded-lg border border-zinc-800">
+                    {passwordStep === 1 ? (
+                      <p className="text-sm text-zinc-400 flex items-center gap-2">
+                        <span className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></span>
+                        Sending OTP to your email...
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-sm text-zinc-400 mb-2">We sent a verification code to <strong>{userProfile?.email}</strong>.</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">6-Digit OTP</label>
+                            <input 
+                              type="text" 
+                              value={resetOtp}
+                              onChange={(e) => setResetOtp(e.target.value)}
+                              maxLength={6}
+                              placeholder="123456"
+                              required
+                              className="w-full bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm focus:outline-none focus:border-indigo-500 tracking-widest font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-zinc-500 mb-1">New Password</label>
+                            <input 
+                              type="password" 
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="••••••••"
+                              required
+                              className="w-full bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm focus:outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-3 mt-2">
+                          <button 
+                            type="submit"
+                            disabled={isLoading || resetOtp.length !== 6 || !newPassword}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            {isLoading ? 'Updating...' : 'Update Password'}
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => { setIsChangingPassword(false); setPasswordStep(1); }}
+                            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-sm px-4 py-2 rounded-lg transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </form>
+                )}
               </div>
 
               {/* Linked Social Accounts */}
