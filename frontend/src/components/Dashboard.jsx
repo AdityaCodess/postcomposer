@@ -20,6 +20,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const fileInputRef = useRef(null);
 
   const [userProfile, setUserProfile] = useState(null);
+  const prevHistoryRef = useRef([]);
   const [linkedAccounts, setLinkedAccounts] = useState({
     twitter: false,
     linkedin: false,
@@ -59,6 +60,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
     fetchUserData();
     fetchPosts();
+    const pollInterval = setInterval(() => {
+      fetchPosts(); 
+    }, 30000);
+    return () => clearInterval(pollInterval);
   }, []);
 
   const getAuthConfig = () => ({
@@ -77,10 +82,31 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  const fetchPosts = async () => {
+ const fetchPosts = async () => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts`, getAuthConfig());
-      if (res.data.success) setPostHistory(res.data.data);
+      if (res.data.success) {
+        const newHistory = res.data.data;
+        
+        // Check if any post transitioned from 'scheduled' to 'published' or 'failed'
+        if (prevHistoryRef.current.length > 0) {
+          newHistory.forEach(newPost => {
+            const oldPost = prevHistoryRef.current.find(p => p._id === newPost._id);
+            if (oldPost && oldPost.status === 'scheduled') {
+              if (newPost.status === 'published') {
+                setStatus({ type: 'success', message: `✅ Your scheduled ${newPost.platform} post just went live!` });
+                setTimeout(() => setStatus({ type: '', message: '' }), 5000);
+              } else if (newPost.status === 'failed') {
+                setStatus({ type: 'error', message: `❌ Scheduled ${newPost.platform} post failed to publish.` });
+                setTimeout(() => setStatus({ type: '', message: '' }), 5000);
+              }
+            }
+          });
+        }
+        
+        prevHistoryRef.current = newHistory;
+        setPostHistory(newHistory);
+      }
     } catch (err) {
       console.error('Failed to fetch history');
     }

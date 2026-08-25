@@ -1,9 +1,8 @@
 require('dotenv').config();
+require('./utils/cronJobs');
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-
-// Route Imports
 const authRoutes = require('./routes/authRoutes');
 const postRoutes = require('./routes/postRoutes'); 
 
