@@ -137,7 +137,7 @@ cron.schedule('* * * * *', async () => {
                 <tr>
                   <td style="padding: 30px 20px; border-bottom: 1px solid #27272a; text-align: center; background-color: #111111;">
                     <!-- NOTE: Change this URL to a hosted image link (e.g. Imgur) if the logo breaks in Gmail during local development -->
-                    <img src="${process.env.FRONTEND_URL || 'http://localhost:5173'}/postifye.svg" alt="Postifye" style="height: 32px; width: auto; margin: 0 auto; display: block;" />
+                    <img src="https://ik.imagekit.io/adityabhallacorp/postifye.png?updatedAt=1787593133300/150x40/151515/ffffff?text=POSTIFYE" alt="Postifye Logo" style="height: 28px; width: auto; display: block; margin: 0 auto;" />
                   </td>
                 </tr>
                 
