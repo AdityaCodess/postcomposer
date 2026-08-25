@@ -25,13 +25,14 @@ const getPosts = async (req, res) => {
 
 const createPost = async (req, res) => {
   try {
-    const { platform, content, media } = req.body;
+    // Extract scheduledFor from the request body
+    const { platform, content, media, scheduledFor } = req.body;
     if (!content && !media) return res.status(400).json({ success: false, message: 'Content or media is required' });
 
     const user = await User.findById(req.user._id);
     
-    // SUBSCRIPTION & ADMIN CHECK
-    const isAdmin = user.email === process.env.ADMIN_EMAIL.trim().toLowerCase() ;
+    // Safely check admin status
+    const isAdmin = user.email === (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
     const plan = user.subscription?.plan || 'free';
     const linkedinCount = user.subscription?.linkedinPostsThisMonth || 0;
 
@@ -40,15 +41,15 @@ const createPost = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Instagram integration is coming soon!' });
     }
 
-    // 2. Block Twitter on Free Tier (Unless Admin)
+    // 2. Enforce Twitter limits
     if (platform === 'twitter' && plan === 'free' && !isAdmin) {
       return res.status(403).json({ 
         success: false, 
         message: 'Twitter publishing is reserved for Creator & Agentic Pro plans. Upgrade to unlock.' 
       });
     }
-
-    // 3. UPDATED: Enforce LinkedIn Limits (Unless Admin)
+    
+    // 3. Enforce LinkedIn limits
     if (platform === 'linkedin' && !isAdmin) {
       let limit = 28; // Default free
       if (plan === 'creator') limit = 700;
@@ -62,113 +63,114 @@ const createPost = async (req, res) => {
       }
     }
 
-    // ==========================================
-    // TWITTER DEPLOYMENT LOGIC
-    // ==========================================
-    if (platform === 'twitter') {
-      if (!user.twitterTokens || !user.twitterTokens.accessToken) {
-        return res.status(401).json({ success: false, message: 'Twitter account not linked' });
-      }
-      const userTwitterClient = new TwitterApi(user.twitterTokens.accessToken);
+    const isScheduled = scheduledFor && new Date(scheduledFor) > new Date();
+
+    // ONLY execute the APIs and deduct quotas if it's an immediate post
+    if (!isScheduled) {
       
-      try {
-        await userTwitterClient.v2.tweet(content || "Media upload initiated via Postifye.");
-      } catch (twitterErr) {
-        console.error("Twitter API Error Details:", JSON.stringify(twitterErr.data || twitterErr.message, null, 2));
-        return res.status(500).json({ success: false, message: 'Twitter API rejected the post.' });
+      // -- TWITTER DEPLOYMENT --
+      if (platform === 'twitter') {
+        if (!user.twitterTokens || !user.twitterTokens.accessToken) {
+          return res.status(401).json({ success: false, message: 'Twitter account not linked' });
+        }
+        const userTwitterClient = new TwitterApi(user.twitterTokens.accessToken);
+        
+        try {
+          await userTwitterClient.v2.tweet(content || "Media upload initiated via Postifye.");
+        } catch (twitterErr) {
+          console.error("Twitter API Error Details:", JSON.stringify(twitterErr.data || twitterErr.message, null, 2));
+          return res.status(500).json({ success: false, message: 'Twitter API rejected the post.' });
+        }
       }
-    }
 
-    // ==========================================
-    // LINKEDIN DEPLOYMENT LOGIC (3-STEP UPLOAD)
-    // ==========================================
-    if (platform === 'linkedin') {
-      if (!user.linkedinTokens || !user.linkedinTokens.accessToken || !user.linkedinId) {
-        return res.status(401).json({ success: false, message: 'LinkedIn account not linked' });
-      }
-      
-      try {
-        let linkedinPostData = {
-          author: `urn:li:person:${user.linkedinId}`,
-          lifecycleState: "PUBLISHED",
-          specificContent: {
-            "com.linkedin.ugc.ShareContent": {
-              shareCommentary: { text: content || "" },
-              shareMediaCategory: "NONE"
-            }
-          },
-          visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
-        };
+      // -- LINKEDIN DEPLOYMENT --
+      if (platform === 'linkedin') {
+        if (!user.linkedinTokens || !user.linkedinTokens.accessToken || !user.linkedinId) {
+          return res.status(401).json({ success: false, message: 'LinkedIn account not linked' });
+        }
+        
+        try {
+          let linkedinPostData = {
+            author: `urn:li:person:${user.linkedinId}`,
+            lifecycleState: "PUBLISHED",
+            specificContent: {
+              "com.linkedin.ugc.ShareContent": {
+                shareCommentary: { text: content || "" },
+                shareMediaCategory: "NONE"
+              }
+            },
+            visibility: { "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC" }
+          };
 
-        if (media) {
-          const mimeType = media.split(';')[0].split(':')[1];
-          const base64Data = media.split(',')[1];
-          const imageBuffer = Buffer.from(base64Data, 'base64');
+          if (media) {
+            const mimeType = media.split(';')[0].split(':')[1];
+            const base64Data = media.split(',')[1];
+            const imageBuffer = Buffer.from(base64Data, 'base64');
 
-          const registerResponse = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
-            registerUploadRequest: {
-              recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
-              owner: `urn:li:person:${user.linkedinId}`,
-              serviceRelationships: [{
-                relationshipType: 'OWNER',
-                identifier: 'urn:li:userGeneratedContent'
-              }]
-            }
-          }, {
+            const registerResponse = await axios.post('https://api.linkedin.com/v2/assets?action=registerUpload', {
+              registerUploadRequest: {
+                recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+                owner: `urn:li:person:${user.linkedinId}`,
+                serviceRelationships: [{
+                  relationshipType: 'OWNER',
+                  identifier: 'urn:li:userGeneratedContent'
+                }]
+              }
+            }, {
+              headers: {
+                'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+
+            const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+            const assetUrn = registerResponse.data.value.asset;
+
+            await axios.put(uploadUrl, imageBuffer, {
+              headers: {
+                'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
+                'Content-Type': mimeType
+              }
+            });
+
+            linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory = "IMAGE";
+            linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].media = [
+              {
+                status: "READY",
+                description: { text: "Uploaded via Postifye Composer" },
+                media: assetUrn,
+                title: { text: "Postifye Media Attachment" }
+              }
+            ];
+          }
+
+          await axios.post('https://api.linkedin.com/v2/ugcPosts', linkedinPostData, {
             headers: {
               'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
+              'X-Restli-Protocol-Version': '2.0.0',
               'Content-Type': 'application/json'
             }
           });
-
-          const uploadUrl = registerResponse.data.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
-          const assetUrn = registerResponse.data.value.asset;
-
-          await axios.put(uploadUrl, imageBuffer, {
-            headers: {
-              'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
-              'Content-Type': mimeType
-            }
-          });
-
-          linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].shareMediaCategory = "IMAGE";
-          linkedinPostData.specificContent["com.linkedin.ugc.ShareContent"].media = [
-            {
-              status: "READY",
-              description: { text: "Uploaded via Postifye Composer" },
-              media: assetUrn,
-              title: { text: "Postifye Media Attachment" }
-            }
-          ];
+          
+        } catch (linkedinErr) {
+          console.error("LinkedIn API Error:", linkedinErr.response?.data || linkedinErr.message);
+          return res.status(500).json({ success: false, message: 'Failed to publish to LinkedIn live feed.' });
         }
-
-        await axios.post('https://api.linkedin.com/v2/ugcPosts', linkedinPostData, {
-          headers: {
-            'Authorization': `Bearer ${user.linkedinTokens.accessToken}`,
-            'X-Restli-Protocol-Version': '2.0.0',
-            'Content-Type': 'application/json'
-          }
-        });
-        
-      } catch (linkedinErr) {
-        console.error("LinkedIn API Error:", linkedinErr.response?.data || linkedinErr.message);
-        return res.status(500).json({ success: false, message: 'Failed to publish to LinkedIn live feed.' });
       }
-    }
 
-    // Track usage (Even for admins, we log the usage for analytics)
-    if (platform === 'linkedin') {
-      await User.findByIdAndUpdate(req.user._id, {
-        $inc: { 'subscription.linkedinPostsThisMonth': 1 }
-      });
-    }
-
+      if (platform === 'linkedin') {
+        await User.findByIdAndUpdate(req.user._id, {
+          $inc: { 'subscription.linkedinPostsThisMonth': 1 }
+        });
+      }
+    } 
     const post = await Post.create({
       user: req.user._id,
       platform,
       content,
       media,
-      status: 'published'
+      status: isScheduled ? 'scheduled' : 'published',
+      scheduledFor: isScheduled ? new Date(scheduledFor) : null
     });
     
     res.status(201).json({ success: true, data: post });
@@ -263,8 +265,7 @@ const linkConnection = async (req, res) => {
       const callbackUrl = `${process.env.BACKEND_URL}/api/posts/connections/linkedin/callback`;
       const state = Math.random().toString(36).substring(7); 
       
-      const linkedinAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${state}&scope=w_member_social%20openid%20profile%20email`;
-      
+      const linkedinAuthUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${process.env.LINKEDIN_CLIENT_ID}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${state}&scope=w_member_social%20openid%20profile%20email&enable_extended_login=true`;
       await User.findByIdAndUpdate(decoded.id, { linkedinOAuth: { state } });
       return res.redirect(linkedinAuthUrl);
     }
