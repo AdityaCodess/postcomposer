@@ -27,12 +27,16 @@ const Dashboard = ({ setIsAuthenticated }) => {
   });
 
   const [postHistory, setPostHistory] = useState([]);
-
+  
   // Dashboard Password Reset States
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [resetOtp, setResetOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  
+  // Scheduling States
+  const [scheduledFor, setScheduledFor] = useState('');
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -114,6 +118,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setEditId(null);
     setShowAI(false);
     setAiPrompt('');
+    setScheduledFor('');
   };
 
   const initiateEdit = (post) => {
@@ -156,15 +161,26 @@ const Dashboard = ({ setIsAuthenticated }) => {
       return setStatus({ type: 'error', message: 'You must add either some text or an image to publish.' });
     }
     
+    // Prevent scheduling in the past
+    if (scheduledFor && new Date(scheduledFor) <= new Date()) {
+      return setStatus({ type: 'error', message: 'Scheduled time must be in the future.' });
+    }
+
     setIsLoading(true);
     try {
-      const payload = { platform, content: content.trim(), media: mediaPreview };
+      const payload = { 
+        platform, 
+        content: content.trim(), 
+        media: mediaPreview,
+        scheduledFor: scheduledFor || null 
+      };
+      
       if (isEditing) {
         await axios.put(`${import.meta.env.VITE_API_URL}/posts/${editId}`, payload, getAuthConfig());
         setStatus({ type: 'success', message: 'Post updated successfully.' });
       } else {
         await axios.post(`${import.meta.env.VITE_API_URL}/posts`, payload, getAuthConfig());
-        setStatus({ type: 'success', message: 'Post published successfully.' });
+        setStatus({ type: 'success', message: scheduledFor ? 'Post scheduled successfully!' : 'Post published successfully.' });
       }
       fetchPosts();
       resetComposer();
@@ -264,13 +280,14 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-const userPlan = userProfile?.subscription?.plan || 'free';
+  const userPlan = userProfile?.subscription?.plan || 'free';
 
   const getLinkedinLimitText = () => {
     if (userPlan === 'Agentic Pro') return '/ 10,000 posts';
     if (userPlan === 'creator') return '/ 700 posts';
     return '/ 28 posts';
   };
+
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
       
@@ -405,8 +422,11 @@ const userPlan = userProfile?.subscription?.plan || 'free';
                     </div>
                   )}
 
-                  <div className="px-4 py-3 border-t border-zinc-800/80 bg-[#0A0A0A]/50 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
+                  {/* Cleaned Up Composer Toolbar */}
+                  <div className="px-4 py-3 border-t border-zinc-800/80 bg-[#0A0A0A]/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    
+                    {/* Left Side: Tools */}
+                    <div className="flex flex-wrap items-center gap-2">
                       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
                       <button 
                         onClick={() => {
@@ -431,40 +451,102 @@ const userPlan = userProfile?.subscription?.plan || 'free';
                         ✨ <span className="hidden sm:inline font-medium">Auto-Generate</span>
                       </button>
 
-                      <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1">
-                         {userProfile?.subscription?.aiCreditsRemaining ?? 10} credits left
+                      <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1 whitespace-nowrap">
+                        ✨ {userProfile?.subscription?.aiCreditsRemaining ?? 10} left
                       </span>
 
                       {(content || mediaPreview) && (
                         <button 
                           onClick={resetComposer}
-                          className="text-xs font-medium text-zinc-400 bg-zinc-800/60 hover:bg-red-500/10 hover:text-red-400 border border-zinc-700/60 hover:border-red-500/30 px-2.5 py-1 rounded-md transition-all ml-1"
+                          className="text-xs font-medium text-zinc-500 hover:text-red-400 px-2 py-1 transition-colors ml-1"
                           title="Clear Composer"
                         >
                           Clear
                         </button>
                       )}
-                      
-                      <span className="text-xs font-mono text-zinc-600 ml-2">
-                        <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
-                      </span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    {/* Right Side: Actions */}
+                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
+                      <span className="text-xs font-mono text-zinc-600 mr-1">
+                        <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
+                      </span>
+
                       {isEditing && (
-                        <button onClick={resetComposer} className="text-zinc-500 hover:text-zinc-300 text-sm font-medium px-4 py-2 transition-colors">
+                        <button onClick={resetComposer} className="text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-colors">
                           Cancel
                         </button>
                       )}
+
+                      {/* Dynamic Schedule Indicator / Button */}
+                      {scheduledFor ? (
+                        <div className="flex items-center bg-indigo-500/10 border border-indigo-500/20 rounded-lg pl-3 pr-1 py-1.5 gap-2">
+                          <span className="text-xs text-indigo-400 font-medium whitespace-nowrap">
+                            {new Date(scheduledFor).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
+                          </span>
+                          <button onClick={() => setScheduledFor('')} className="p-1 hover:bg-indigo-500/20 rounded-md text-indigo-400 transition-colors" title="Remove Schedule">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                      ) : (
+                        <button 
+                          type="button"
+                          onClick={() => setShowScheduleModal(true)}
+                          className="text-zinc-400 hover:text-zinc-200 bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-700/50 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                          <span className="hidden sm:inline">Schedule</span>
+                        </button>
+                      )}
+
                       <button 
                         onClick={handlePublish}
                         disabled={isLoading}
-                        className={`font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 ${isEditing ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-zinc-100 hover:bg-white text-zinc-950'}`}
+                        className={`font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 ${isEditing ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : scheduledFor ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-zinc-100 hover:bg-white text-zinc-950'}`}
                       >
-                        {isLoading ? 'Publishing...' : isEditing ? 'Update Post' : 'Publish'}
+                        {isLoading ? 'Processing...' : isEditing ? 'Update Post' : scheduledFor ? 'Queue Post' : 'Publish'}
                       </button>
                     </div>
                   </div>
+                  
+                  {/* Scheduling Modal */}
+                  {showScheduleModal && (
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                      <div className="bg-[#111] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-[#151515]">
+                          <h3 className="font-semibold text-zinc-100">Schedule Post</h3>
+                          <button onClick={() => setShowScheduleModal(false)} className="text-zinc-500 hover:text-zinc-300">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
+                        </div>
+                        <div className="p-6">
+                          <label className="block text-sm text-zinc-400 mb-2">Select Date & Time</label>
+                          <input 
+                            type="datetime-local" 
+                            value={scheduledFor}
+                            onChange={(e) => setScheduledFor(e.target.value)}
+                            className="w-full bg-[#0A0A0A] text-zinc-200 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark]"
+                          />
+                          <p className="text-xs text-zinc-500 mt-3">
+                            Your post will automatically deploy at this time.
+                          </p>
+                        </div>
+                        <div className="p-4 border-t border-zinc-800 flex gap-3 justify-end bg-[#151515]">
+                          <button onClick={() => setShowScheduleModal(false)} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={() => setShowScheduleModal(false)}
+                            disabled={!scheduledFor}
+                            className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50"
+                          >
+                            Set Time
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               </section>
 
@@ -524,7 +606,10 @@ const userPlan = userProfile?.subscription?.plan || 'free';
                       ) : (
                         postHistory.map((post) => (
                           <tr key={post._id} className="hover:bg-zinc-900/40 transition-colors group">
-                            <td className="px-6 py-4 whitespace-nowrap">{new Date(post.createdAt).toLocaleDateString()}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {new Date(post.createdAt).toLocaleDateString()}
+                              {post.status === 'scheduled' && <span className="ml-2 text-[10px] bg-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded-full">Scheduled</span>}
+                            </td>
                             <td className="px-6 py-4 capitalize font-medium text-zinc-300">{post.platform}</td>
                             <td className="px-6 py-4 max-w-xs truncate text-zinc-400">{post.content || <span className="italic text-zinc-600">Media only</span>}</td>
                             <td className="px-6 py-4">
