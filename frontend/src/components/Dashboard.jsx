@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import Cropper from 'react-easy-crop';
-import getCroppedImg from '../utils/cropImage';
+import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
 
 const Dashboard = ({ setIsAuthenticated }) => {
   const [activeTab, setActiveTab] = useState('compose'); 
@@ -9,12 +8,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [platform, setPlatform] = useState('linkedin');
   const [mediaPreview, setMediaPreview] = useState(null);
   
-  // Media Editor States
+  // Advanced Media Editor States
   const [imageToEdit, setImageToEdit] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   
   const [showAI, setShowAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -125,10 +121,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
-  // Intercept the upload to show the Editor instead of setting it immediately
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
-      setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused due to upstream API limits.' });
+      setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused.' });
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
       return;
     }
@@ -141,32 +136,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       };
       reader.readAsDataURL(file);
     }
-    // Clear input so the same file can trigger onChange again if needed
     if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // Process the final crop
-  const onCropComplete = (croppedArea, croppedAreaPixels) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  };
-
-  const applyCrop = async () => {
-    try {
-      const croppedImageBase64 = await getCroppedImg(imageToEdit, croppedAreaPixels);
-      setMediaPreview(croppedImageBase64);
-      setShowEditor(false);
-      setImageToEdit(null);
-      setZoom(1);
-    } catch (e) {
-      console.error(e);
-      setStatus({ type: 'error', message: 'Failed to process image.' });
-    }
-  };
-
-  const cancelCrop = () => {
-    setShowEditor(false);
-    setImageToEdit(null);
-    setZoom(1);
   };
 
   const clearMedia = () => {
@@ -206,7 +176,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   };
 
   const handleDeleteAccount = async () => {
-    if (!window.confirm("CRITICAL WARNING: This will permanently delete your account and wipe all your deployment history from the database. This action cannot be undone. Proceed?")) return;
+    if (!window.confirm("CRITICAL WARNING: This will permanently delete your account and wipe all your deployment history from the database. Proceed?")) return;
     try {
       await axios.delete(`${import.meta.env.VITE_API_URL}/posts/me`, getAuthConfig());
       handleLogout();
@@ -352,7 +322,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
     <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white relative">
       
       {/* Sidebar Navigation */}
-      <aside className="w-64 border-r border-zinc-800/60 bg-[#0A0A0A] flex flex-col hidden md:flex">
+      <aside className="w-64 border-r border-zinc-800/60 bg-[#0A0A0A] flex flex-col hidden md:flex z-10">
         <div className="h-16 flex items-center px-6 border-b border-zinc-800/60 gap-3">
           <img src="/postifye.svg" alt="Postifye Logo" className="h-6 w-auto" />
           <h1 className="text-sm font-bold text-zinc-100 tracking-wide uppercase">POSTIFYE</h1>
@@ -391,7 +361,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
           <button onClick={() => setActiveTab('settings')} className="text-xs text-zinc-500 hover:text-zinc-300">Settings</button>
         </header>
 
-        <div className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto">
+        <div className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto relative z-0">
           {status.message && (
             <div className={`mb-6 p-4 rounded-lg text-sm font-medium border backdrop-blur-sm transition-all ${status.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
               {status.message}
@@ -430,13 +400,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   {showAI && (
                     <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-b border-indigo-500/20 p-4 animate-in slide-in-from-top-2">
                       <div className="flex gap-2">
-                        <input 
-                          type="text" 
-                          value={aiPrompt}
-                          onChange={(e) => setAiPrompt(e.target.value)}
-                          placeholder={`What should we write about for ${platform}?`}
-                          className="flex-1 bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60"
-                        />
+                        <input type="text" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder={`What should we write about for ${platform}?`} className="flex-1 bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60" />
                         <button onClick={handleAIGenerate} disabled={isGenerating || !aiPrompt} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
                           {isGenerating ? <span className="animate-pulse">Generating...</span> : <>✨ Generate</>}
                         </button>
@@ -502,9 +466,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       </span>
 
                       {isEditing && (
-                        <button onClick={resetComposer} className="text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-colors">
-                          Cancel
-                        </button>
+                        <button onClick={resetComposer} className="text-zinc-500 hover:text-zinc-300 text-sm font-medium transition-colors">Cancel</button>
                       )}
 
                       {scheduledFor ? (
@@ -528,10 +490,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       </button>
                     </div>
                   </div>
-                  
+
                   {/* Scheduling Modal */}
                   {showScheduleModal && (
-                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
                       <div className="bg-[#111] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-sm overflow-hidden animate-in fade-in zoom-in-95 duration-200">
                         <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-[#151515]">
                           <h3 className="font-semibold text-zinc-100">Schedule Post</h3>
@@ -550,56 +512,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       </div>
                     </div>
                   )}
-
-                  {/* Image Editor Modal */}
-                  {showEditor && imageToEdit && (
-                    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-                      <div className="bg-[#111] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col h-[70vh]">
-                        <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-[#151515]">
-                          <h3 className="font-semibold text-zinc-100">Edit Media</h3>
-                          <button onClick={cancelCrop} className="text-zinc-500 hover:text-zinc-300">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
-                        </div>
-                        
-                        <div className="flex-1 relative bg-[#0A0A0A]">
-                          <Cropper
-                            image={imageToEdit}
-                            crop={crop}
-                            zoom={zoom}
-                            onCropChange={setCrop}
-                            onCropComplete={onCropComplete}
-                            onZoomChange={setZoom}
-                            classes={{ containerClassName: 'w-full h-full' }}
-                          />
-                        </div>
-                        
-                        <div className="p-4 border-t border-zinc-800 flex flex-col sm:flex-row gap-4 items-center justify-between bg-[#151515]">
-                          <div className="w-full sm:w-1/2 flex items-center gap-3">
-                            <span className="text-xs text-zinc-400 font-medium">Zoom</span>
-                            <input 
-                              type="range" 
-                              value={zoom} 
-                              min={1} 
-                              max={3} 
-                              step={0.1} 
-                              onChange={(e) => setZoom(e.target.value)} 
-                              className="w-full accent-indigo-500 cursor-pointer" 
-                            />
-                          </div>
-                          <div className="flex gap-3 w-full sm:w-auto justify-end">
-                            <button onClick={cancelCrop} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
-                              Cancel
-                            </button>
-                            <button onClick={applyCrop} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-500/20">
-                              Apply & Attach
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
                 </div>
               </section>
 
@@ -697,10 +609,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 
                 <div className="flex items-center justify-center gap-4">
                   <span className={`text-sm font-semibold transition-colors ${!isAnnual ? 'text-white' : 'text-zinc-500'}`}>Monthly</span>
-                  <button 
-                    onClick={() => setIsAnnual(!isAnnual)}
-                    className="w-14 h-7 bg-[#151515] border border-zinc-700 rounded-full p-1 relative transition-colors focus:outline-none flex items-center"
-                  >
+                  <button onClick={() => setIsAnnual(!isAnnual)} className="w-14 h-7 bg-[#151515] border border-zinc-700 rounded-full p-1 relative transition-colors focus:outline-none flex items-center">
                     <div className={`w-5 h-5 bg-indigo-500 rounded-full shadow-md transition-transform duration-300 ease-in-out ${isAnnual ? 'translate-x-7' : 'translate-x-0'}`}></div>
                   </button>
                   <span className={`text-sm font-semibold flex items-center gap-2 transition-colors ${isAnnual ? 'text-white' : 'text-zinc-500'}`}>
@@ -942,6 +851,71 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
         </div>
       </main>
+
+      {/* PORTAL LEVEL EDITOR OVERLAY (FIXES Z-INDEX OVERLAP) */}
+      {showEditor && imageToEdit && (
+        <div className="fixed inset-0 z-[9999] bg-black/95 flex flex-col items-center justify-center p-4 sm:p-8 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full h-full max-w-6xl max-h-[85vh] flex flex-col bg-[#111] border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
+            
+            {/* Custom Explicit Header */}
+            <div className="h-16 px-6 bg-[#151515] border-b border-zinc-800 flex items-center justify-between shrink-0">
+              <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
+                <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                Postifye Studio
+              </h3>
+              <button 
+                onClick={() => { setShowEditor(false); setImageToEdit(null); }} 
+                className="text-zinc-400 hover:text-red-400 font-medium text-sm transition-colors"
+              >
+                Cancel Editing
+              </button>
+            </div>
+
+            {/* Constrained Editor Viewport */}
+            <div className="flex-1 relative w-full h-full">
+              <FilerobotImageEditor
+                source={imageToEdit}
+                onSave={(editedImageObject) => {
+                  setMediaPreview(editedImageObject.imageBase64);
+                  setShowEditor(false);
+                  setImageToEdit(null);
+                }}
+                annotationsCommon={{ fill: '#ffffff' }}
+                Text={{ text: 'Add text here...' }}
+                tabsIds={[TABS.ADJUST, TABS.ANNOTATE, TABS.WATERMARK, TABS.FILTERS, TABS.FINETUNE, TABS.RESIZE]}
+                defaultTabId={TABS.ADJUST}
+                defaultToolId={TOOLS.CROP}
+                savingPixelRatio={1}
+                previewPixelRatio={1}
+                translations={{
+                  save: 'Apply & Attach', // Explicitly renames the native Save button
+                }}
+                theme={{
+                  typography: { fontFamily: 'inherit' },
+                  palette: {
+                    'bg-primary-active': '#4f46e5',
+                    'bg-active': '#4f46e5',
+                    'accent-primary': '#4f46e5',
+                    'accent-primary-hover': '#4338ca',
+                    'accent-primary-active': '#4338ca',
+                    'icons-primary': '#e4e4e7',
+                    'icons-secondary': '#a1a1aa',
+                    'bg-secondary': '#151515',
+                    'bg-primary': '#0A0A0A',
+                    'borders-primary': '#27272a',
+                    'borders-secondary': '#27272a',
+                    'txt-primary': '#f4f4f5',
+                    'txt-secondary': '#a1a1aa',
+                    'txt-primary-invert': '#111111',
+                  }
+                }}
+              />
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
