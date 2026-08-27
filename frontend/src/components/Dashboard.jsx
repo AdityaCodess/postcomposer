@@ -17,8 +17,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [rotation, setRotation] = useState(0);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   
+  // AI Tools States
   const [showAI, setShowAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiTone, setAiTone] = useState('Professional');
+  const [aiPreset, setAiPreset] = useState('Standard');
   const [isGenerating, setIsGenerating] = useState(false);
 
   const [isEditing, setIsEditing] = useState(false);
@@ -126,9 +129,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
-  // ----------------------------------------------------
-  // MEDIA EDITOR LOGIC
-  // ----------------------------------------------------
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
       setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused.' });
@@ -153,7 +153,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const applyCrop = async () => {
     try {
-      // Call our custom canvas utility
       const croppedImageBase64 = await getCroppedImg(imageToEdit, croppedAreaPixels, rotation);
       setMediaPreview(croppedImageBase64);
       setShowEditor(false);
@@ -177,9 +176,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setMediaPreview(null);
   };
 
-  // ----------------------------------------------------
-  // COMPOSER LOGIC
-  // ----------------------------------------------------
   const resetComposer = () => {
     setContent('');
     setPlatform('linkedin');
@@ -188,6 +184,8 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setEditId(null);
     setShowAI(false);
     setAiPrompt('');
+    setAiTone('Professional');
+    setAiPreset('Standard');
     setScheduledFor('');
   };
 
@@ -267,7 +265,14 @@ const Dashboard = ({ setIsAuthenticated }) => {
     
     setIsGenerating(true);
     try {
-      const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/generate`, { platform, topic: aiPrompt }, getAuthConfig());
+      // SENDING TONE AND PRESET TO BACKEND
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/generate`, { 
+        platform, 
+        topic: aiPrompt,
+        tone: aiTone,
+        preset: aiPreset 
+      }, getAuthConfig());
+      
       if (res.data.success) {
         setContent(res.data.data);
         setShowAI(false);
@@ -434,11 +439,47 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
                 <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col shadow-lg shadow-black/50 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all relative">
                   
+                  {/* AI TOOLBAR DROPDOWN */}
                   {showAI && (
-                    <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-b border-indigo-500/20 p-4 animate-in slide-in-from-top-2">
+                    <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-b border-indigo-500/20 p-4 animate-in slide-in-from-top-2 flex flex-col gap-3">
+                      
+                      {/* Presets and Tone Row */}
+                      <div className="flex flex-wrap gap-3">
+                        <select 
+                          value={aiPreset} 
+                          onChange={(e) => setAiPreset(e.target.value)} 
+                          className="bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/60 cursor-pointer"
+                        >
+                          <option value="Standard">Standard Post</option>
+                          <option value="Thought Leadership">Thought Leadership</option>
+                          <option value="Project Showcase">Project Showcase</option>
+                          <option value="Storytelling">Storytelling</option>
+                        </select>
+                        <select 
+                          value={aiTone} 
+                          onChange={(e) => setAiTone(e.target.value)} 
+                          className="bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500/60 cursor-pointer"
+                        >
+                          <option value="Professional">Professional</option>
+                          <option value="Casual">Casual</option>
+                          <option value="Punchy">Direct & Punchy</option>
+                          <option value="Storyteller">Storyteller</option>
+                        </select>
+                      </div>
+
                       <div className="flex gap-2">
-                        <input type="text" value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)} placeholder={`What should we write about for ${platform}?`} className="flex-1 bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60" />
-                        <button onClick={handleAIGenerate} disabled={isGenerating || !aiPrompt} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
+                        <input 
+                          type="text" 
+                          value={aiPrompt} 
+                          onChange={(e) => setAiPrompt(e.target.value)} 
+                          placeholder={`What should we write about for ${platform}?`} 
+                          className="flex-1 bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60" 
+                        />
+                        <button 
+                          onClick={handleAIGenerate} 
+                          disabled={isGenerating || !aiPrompt} 
+                          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                        >
                           {isGenerating ? <span className="animate-pulse">Generating...</span> : <>✨ Generate</>}
                         </button>
                       </div>

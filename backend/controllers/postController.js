@@ -182,18 +182,24 @@ const createPost = async (req, res) => {
 
 const generateAIPost = async (req, res) => {
   try {
-    const { topic, platform } = req.body;
+    const { topic, platform, tone = 'Professional', preset = 'Standard'} = req.body;
     if (!topic) return res.status(400).json({ success: false, message: 'Please provide a topic for the AI.' });
 
     const user = await User.findById(req.user._id);
     const plan = user.subscription?.plan || 'free';
-    
-    // UPDATED: Only Admin is truly unlimited now
     const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
     const userEmail = (user.email || '').trim().toLowerCase();
     const isAdmin = userEmail === adminEmail;
 
-    // Ensure subscription object exists
+    let systemInstruction = `You are an expert social media copywriter. Write a ${platform} post about the following topic: "${topic}". `;
+    
+    if (preset === 'Thought Leadership') systemInstruction += "Structure it as a thought leadership piece: start with a strong hook, offer a unique perspective or counter-narrative, and end with an open question. ";
+    if (preset === 'Project Showcase') systemInstruction += "Structure it as a project showcase: highlight the problem, explain the technical solution concisely, and share the results/learnings. ";
+    if (preset === 'Storytelling') systemInstruction += "Structure it as a personal story: start with a relatable struggle or realization, explain the journey, and end with an inspiring takeaway. ";
+    systemInstruction += `The tone should be ${tone}. `;
+    if (platform === 'twitter') systemInstruction += "Keep it strictly under 280 characters and use 1-2 relevant hashtags.";
+    
+
     if (!user.subscription) {
       user.subscription = { plan: 'free', aiCreditsRemaining: 10, linkedinPostsThisMonth: 0 };
     }
@@ -216,8 +222,7 @@ const generateAIPost = async (req, res) => {
     }
 
     const model = genAI.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
-    const prompt = `You are an expert social media manager. Write a professional, highly engaging post for ${platform} about the following topic: "${topic}". 
-    Format it perfectly for ${platform} (use appropriate length, tone, formatting, and a few relevant hashtags). 
+    const prompt = `${systemInstruction}
     Do not include introductory filler text like "Here is your post", just return the actual post content itself.`;
 
     const result = await model.generateContent(prompt);
