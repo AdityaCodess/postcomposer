@@ -35,9 +35,7 @@ cron.schedule('* * * * *', async () => {
       let errorMsg = null;
 
       try {
-        // ==========================================
-        // TWITTER DEPLOYMENT LOGIC
-        // ==========================================
+
         if (post.platform === 'twitter') {
           if (!user.twitterTokens || !user.twitterTokens.accessToken) throw new Error('Twitter disconnected');
           
@@ -46,9 +44,6 @@ cron.schedule('* * * * *', async () => {
           success = true;
         }
 
-        // ==========================================
-        // LINKEDIN DEPLOYMENT LOGIC
-        // ==========================================
         if (post.platform === 'linkedin') {
           if (!user.linkedinTokens || !user.linkedinTokens.accessToken || !user.linkedinId) throw new Error('LinkedIn disconnected');
 
@@ -121,9 +116,6 @@ cron.schedule('* * * * *', async () => {
       post.errorLog = errorMsg;
       await post.save();
 
-      // ==========================================
-      // DISPATCH DARK-MODE EMAIL NOTIFICATION
-      // ==========================================
       try {
         await transporter.sendMail({
           from: `"Postifye" <${process.env.EMAIL_USER}>`,

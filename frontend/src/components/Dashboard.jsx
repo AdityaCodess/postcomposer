@@ -1,11 +1,20 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
+import Cropper from 'react-easy-crop';
+import getCroppedImg from '../utils/cropImage';
 
 const Dashboard = ({ setIsAuthenticated }) => {
   const [activeTab, setActiveTab] = useState('compose'); 
   const [content, setContent] = useState('');
   const [platform, setPlatform] = useState('linkedin');
   const [mediaPreview, setMediaPreview] = useState(null);
+  
+  // Media Editor States
+  const [imageToEdit, setImageToEdit] = useState(null);
+  const [showEditor, setShowEditor] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   
   const [showAI, setShowAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -18,9 +27,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [status, setStatus] = useState({ type: '', message: '' });
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef(null);
+  const prevHistoryRef = useRef([]);
 
   const [userProfile, setUserProfile] = useState(null);
-  const prevHistoryRef = useRef([]);
   const [linkedAccounts, setLinkedAccounts] = useState({
     twitter: false,
     linkedin: false,
@@ -29,13 +38,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
   const [postHistory, setPostHistory] = useState([]);
   
-  // Dashboard Password Reset States
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordStep, setPasswordStep] = useState(1);
   const [resetOtp, setResetOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   
-  // Scheduling States
   const [scheduledFor, setScheduledFor] = useState('');
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
@@ -60,9 +67,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
     fetchUserData();
     fetchPosts();
+
     const pollInterval = setInterval(() => {
       fetchPosts(); 
-    }, 30000);
+    }, 30000); 
+
     return () => clearInterval(pollInterval);
   }, []);
 
@@ -82,13 +91,12 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
- const fetchPosts = async () => {
+  const fetchPosts = async () => {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts`, getAuthConfig());
       if (res.data.success) {
         const newHistory = res.data.data;
         
-        // Check if any post transitioned from 'scheduled' to 'published' or 'failed'
         if (prevHistoryRef.current.length > 0) {
           newHistory.forEach(newPost => {
             const oldPost = prevHistoryRef.current.find(p => p._id === newPost._id);
@@ -117,6 +125,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
+  // Intercept the upload to show the Editor instead of setting it immediately
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
       setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused due to upstream API limits.' });
@@ -126,14 +135,42 @@ const Dashboard = ({ setIsAuthenticated }) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onloadend = () => setMediaPreview(reader.result); 
+      reader.onloadend = () => {
+        setImageToEdit(reader.result);
+        setShowEditor(true); 
+      };
       reader.readAsDataURL(file);
     }
+    // Clear input so the same file can trigger onChange again if needed
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Process the final crop
+  const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const applyCrop = async () => {
+    try {
+      const croppedImageBase64 = await getCroppedImg(imageToEdit, croppedAreaPixels);
+      setMediaPreview(croppedImageBase64);
+      setShowEditor(false);
+      setImageToEdit(null);
+      setZoom(1);
+    } catch (e) {
+      console.error(e);
+      setStatus({ type: 'error', message: 'Failed to process image.' });
+    }
+  };
+
+  const cancelCrop = () => {
+    setShowEditor(false);
+    setImageToEdit(null);
+    setZoom(1);
   };
 
   const clearMedia = () => {
     setMediaPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const resetComposer = () => {
@@ -187,7 +224,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
       return setStatus({ type: 'error', message: 'You must add either some text or an image to publish.' });
     }
     
-    // Prevent scheduling in the past
     if (scheduledFor && new Date(scheduledFor) <= new Date()) {
       return setStatus({ type: 'error', message: 'Scheduled time must be in the future.' });
     }
@@ -267,7 +303,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  // Dashboard Password Change Handlers
   const handleRequestPasswordChange = async () => {
     setIsLoading(true);
     try {
@@ -293,7 +328,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
       });
       setStatus({ type: 'success', message: 'Password updated successfully!' });
       
-      // Reset the password UI state completely
       setPasswordStep(1);
       setIsChangingPassword(false);
       setResetOtp('');
@@ -315,7 +349,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white">
+    <div className="min-h-screen bg-[#0A0A0A] text-zinc-300 font-sans flex selection:bg-zinc-800 selection:text-white relative">
       
       {/* Sidebar Navigation */}
       <aside className="w-64 border-r border-zinc-800/60 bg-[#0A0A0A] flex flex-col hidden md:flex">
@@ -325,34 +359,22 @@ const Dashboard = ({ setIsAuthenticated }) => {
         </div>
 
         <nav className="flex-1 px-4 py-6 space-y-2">
-          <button 
-            onClick={() => setActiveTab('compose')}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'compose' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
-          >
+          <button onClick={() => setActiveTab('compose')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'compose' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
             Composer {isEditing && <span className="ml-auto w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>}
           </button>
           
-          <button 
-            onClick={() => setActiveTab('history')}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'history' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
-          >
+          <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'history' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Post History
           </button>
 
-          <button 
-            onClick={() => setActiveTab('billing')}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'billing' ? 'bg-indigo-900/30 text-indigo-400 font-medium border border-indigo-500/30' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
-          >
+          <button onClick={() => setActiveTab('billing')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'billing' ? 'bg-indigo-900/30 text-indigo-400 font-medium border border-indigo-500/30' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
             Billing & Plans
           </button>
 
-          <button 
-            onClick={() => setActiveTab('settings')}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'settings' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}
-          >
+          <button onClick={() => setActiveTab('settings')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'settings' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
             Account Settings
           </button>
@@ -371,7 +393,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
         <div className="flex-1 p-6 lg:p-10 max-w-7xl w-full mx-auto">
           {status.message && (
-            <div className={`mb-6 p-4 rounded-lg text-sm font-medium border backdrop-blur-sm ${status.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
+            <div className={`mb-6 p-4 rounded-lg text-sm font-medium border backdrop-blur-sm transition-all ${status.type === 'success' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
               {status.message}
             </div>
           )}
@@ -403,7 +425,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </select>
                 </div>
 
-                <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col shadow-lg shadow-black/50 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all">
+                <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden flex flex-col shadow-lg shadow-black/50 focus-within:border-zinc-600 focus-within:ring-1 focus-within:ring-zinc-600 transition-all relative">
                   
                   {showAI && (
                     <div className="bg-gradient-to-r from-indigo-900/30 to-purple-900/30 border-b border-indigo-500/20 p-4 animate-in slide-in-from-top-2">
@@ -415,11 +437,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                           placeholder={`What should we write about for ${platform}?`}
                           className="flex-1 bg-[#0A0A0A]/50 border border-indigo-500/30 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500/60"
                         />
-                        <button 
-                          onClick={handleAIGenerate}
-                          disabled={isGenerating || !aiPrompt}
-                          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
-                        >
+                        <button onClick={handleAIGenerate} disabled={isGenerating || !aiPrompt} className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2">
                           {isGenerating ? <span className="animate-pulse">Generating...</span> : <>✨ Generate</>}
                         </button>
                       </div>
@@ -438,20 +456,15 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     <div className="px-6 pb-4">
                       <div className="relative inline-block border border-zinc-800 rounded-lg overflow-hidden group shadow-lg">
                         <img src={mediaPreview} alt="Upload preview" className="h-32 w-auto object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
-                        <button 
-                          onClick={clearMedia}
-                          className="absolute top-2 right-2 bg-black/60 hover:bg-red-500/80 text-white rounded-full p-1.5 backdrop-blur-md transition-colors"
-                        >
+                        <button onClick={clearMedia} className="absolute top-2 right-2 bg-black/60 hover:bg-red-500/80 text-white rounded-full p-1.5 backdrop-blur-md transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {/* Cleaned Up Composer Toolbar */}
+                  {/* Toolbar */}
                   <div className="px-4 py-3 border-t border-zinc-800/80 bg-[#0A0A0A]/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    
-                    {/* Left Side: Tools */}
                     <div className="flex flex-wrap items-center gap-2">
                       <input type="file" accept="image/*" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
                       <button 
@@ -464,16 +477,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
                           }
                         }}
                         className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${platform === 'twitter' ? 'text-zinc-700 cursor-not-allowed' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'}`}
-                        title={platform === 'twitter' ? "Media currently paused for Twitter" : "Attach Media"}
                       >
                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                       </button>
 
-                      <button 
-                        onClick={() => setShowAI(!showAI)}
-                        className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${showAI ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800'}`}
-                        title="Auto-Generate with AI"
-                      >
+                      <button onClick={() => setShowAI(!showAI)} className={`p-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${showAI ? 'bg-indigo-500/20 text-indigo-400' : 'text-zinc-500 hover:text-indigo-400 hover:bg-zinc-800'}`}>
                         ✨ <span className="hidden sm:inline font-medium">Auto-Generate</span>
                       </button>
 
@@ -482,17 +490,12 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       </span>
 
                       {(content || mediaPreview) && (
-                        <button 
-                          onClick={resetComposer}
-                          className="text-xs font-medium text-zinc-500 hover:text-red-400 px-2 py-1 transition-colors ml-1"
-                          title="Clear Composer"
-                        >
+                        <button onClick={resetComposer} className="text-xs font-medium text-zinc-500 hover:text-red-400 px-2 py-1 transition-colors ml-1">
                           Clear
                         </button>
                       )}
                     </div>
 
-                    {/* Right Side: Actions */}
                     <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
                       <span className="text-xs font-mono text-zinc-600 mr-1">
                         <span className={content.length > 2000 ? 'text-red-400' : 'text-zinc-400'}>{content.length}</span> / 2200
@@ -504,32 +507,23 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         </button>
                       )}
 
-                      {/* Dynamic Schedule Indicator / Button */}
                       {scheduledFor ? (
                         <div className="flex items-center bg-indigo-500/10 border border-indigo-500/20 rounded-lg pl-3 pr-1 py-1.5 gap-2">
                           <span className="text-xs text-indigo-400 font-medium whitespace-nowrap">
                             {new Date(scheduledFor).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' })}
                           </span>
-                          <button onClick={() => setScheduledFor('')} className="p-1 hover:bg-indigo-500/20 rounded-md text-indigo-400 transition-colors" title="Remove Schedule">
+                          <button onClick={() => setScheduledFor('')} className="p-1 hover:bg-indigo-500/20 rounded-md text-indigo-400 transition-colors">
                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
                         </div>
                       ) : (
-                        <button 
-                          type="button"
-                          onClick={() => setShowScheduleModal(true)}
-                          className="text-zinc-400 hover:text-zinc-200 bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-700/50 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
-                        >
+                        <button type="button" onClick={() => setShowScheduleModal(true)} className="text-zinc-400 hover:text-zinc-200 bg-zinc-800/50 hover:bg-zinc-700/50 border border-zinc-700/50 px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                           <span className="hidden sm:inline">Schedule</span>
                         </button>
                       )}
 
-                      <button 
-                        onClick={handlePublish}
-                        disabled={isLoading}
-                        className={`font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 ${isEditing ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : scheduledFor ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-zinc-100 hover:bg-white text-zinc-950'}`}
-                      >
+                      <button onClick={handlePublish} disabled={isLoading} className={`font-semibold text-sm px-6 py-2 rounded-lg transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] disabled:opacity-50 ${isEditing ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : scheduledFor ? 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)]' : 'bg-zinc-100 hover:bg-white text-zinc-950'}`}>
                         {isLoading ? 'Processing...' : isEditing ? 'Update Post' : scheduledFor ? 'Queue Post' : 'Publish'}
                       </button>
                     </div>
@@ -547,27 +541,60 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         </div>
                         <div className="p-6">
                           <label className="block text-sm text-zinc-400 mb-2">Select Date & Time</label>
-                          <input 
-                            type="datetime-local" 
-                            value={scheduledFor}
-                            onChange={(e) => setScheduledFor(e.target.value)}
-                            className="w-full bg-[#0A0A0A] text-zinc-200 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark]"
-                          />
-                          <p className="text-xs text-zinc-500 mt-3">
-                            Your post will automatically deploy at this time.
-                          </p>
+                          <input type="datetime-local" value={scheduledFor} onChange={(e) => setScheduledFor(e.target.value)} className="w-full bg-[#0A0A0A] text-zinc-200 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors [color-scheme:dark]" />
                         </div>
                         <div className="p-4 border-t border-zinc-800 flex gap-3 justify-end bg-[#151515]">
-                          <button onClick={() => setShowScheduleModal(false)} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
-                            Cancel
+                          <button onClick={() => setShowScheduleModal(false)} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
+                          <button onClick={() => setShowScheduleModal(false)} disabled={!scheduledFor} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50">Set Time</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Image Editor Modal */}
+                  {showEditor && imageToEdit && (
+                    <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+                      <div className="bg-[#111] border border-zinc-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col h-[70vh]">
+                        <div className="p-4 border-b border-zinc-800 flex justify-between items-center bg-[#151515]">
+                          <h3 className="font-semibold text-zinc-100">Edit Media</h3>
+                          <button onClick={cancelCrop} className="text-zinc-500 hover:text-zinc-300">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                           </button>
-                          <button 
-                            onClick={() => setShowScheduleModal(false)}
-                            disabled={!scheduledFor}
-                            className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors disabled:opacity-50"
-                          >
-                            Set Time
-                          </button>
+                        </div>
+                        
+                        <div className="flex-1 relative bg-[#0A0A0A]">
+                          <Cropper
+                            image={imageToEdit}
+                            crop={crop}
+                            zoom={zoom}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onZoomChange={setZoom}
+                            classes={{ containerClassName: 'w-full h-full' }}
+                          />
+                        </div>
+                        
+                        <div className="p-4 border-t border-zinc-800 flex flex-col sm:flex-row gap-4 items-center justify-between bg-[#151515]">
+                          <div className="w-full sm:w-1/2 flex items-center gap-3">
+                            <span className="text-xs text-zinc-400 font-medium">Zoom</span>
+                            <input 
+                              type="range" 
+                              value={zoom} 
+                              min={1} 
+                              max={3} 
+                              step={0.1} 
+                              onChange={(e) => setZoom(e.target.value)} 
+                              className="w-full accent-indigo-500 cursor-pointer" 
+                            />
+                          </div>
+                          <div className="flex gap-3 w-full sm:w-auto justify-end">
+                            <button onClick={cancelCrop} className="px-4 py-2 text-sm font-medium text-zinc-400 hover:text-zinc-200 transition-colors">
+                              Cancel
+                            </button>
+                            <button onClick={applyCrop} className="px-4 py-2 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-500/20">
+                              Apply & Attach
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -668,7 +695,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 <h2 className="text-2xl font-bold text-zinc-100 mb-2">Upgrade your workflow.</h2>
                 <p className="text-zinc-400 mb-8">Choose the plan that fits your posting volume.</p>
                 
-                {/* Billing Toggle */}
                 <div className="flex items-center justify-center gap-4">
                   <span className={`text-sm font-semibold transition-colors ${!isAnnual ? 'text-white' : 'text-zinc-500'}`}>Monthly</span>
                   <button 
@@ -685,7 +711,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
               </div>
 
               <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-                {/* Hobby Plan */}
                 <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
                   {userPlan === 'free' && <div className="absolute top-0 right-6 transform -translate-y-1/2 bg-zinc-700 text-xs font-bold px-3 py-1 rounded-full text-zinc-200 shadow-lg">CURRENT PLAN</div>}
                   <h3 className="text-lg font-semibold text-zinc-200 mb-2">Hobby</h3>
@@ -704,7 +729,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </button>
                 </div>
 
-                {/* Creator Plan */}
                 <div className="bg-gradient-to-b from-[#151515] to-[#0A0A0A] border border-indigo-500/50 rounded-2xl p-6 flex flex-col relative shadow-xl shadow-indigo-900/10 scale-105 z-10">
                   <div className="absolute top-0 right-6 transform -translate-y-1/2 bg-indigo-500 text-xs font-bold px-3 py-1 rounded-full text-white shadow-lg">MOST POPULAR</div>
                   <h3 className="text-lg font-semibold text-indigo-400 mb-2">Creator</h3>
@@ -727,7 +751,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   </button>
                 </div>
 
-                {/* Agentic Pro Plan */}
                 <div className="bg-[#111] border border-zinc-800/80 rounded-2xl p-6 flex flex-col relative">
                   <h3 className="text-lg font-semibold text-zinc-200 mb-2">Agentic Pro</h3>
                   <div className="mb-6 flex flex-col">
@@ -760,34 +783,33 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 <p className="text-sm text-zinc-500 mt-1">Manage your active subscription, connected networks, and credentials.</p>
               </div>
 
-            {/* Subscription & Usage Overview */}
-            <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
-              <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
-                <div>
-                  <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider">Subscription & Quota</h3>
-                  <p className="text-xs text-zinc-500 mt-0.5">Your monthly posting and AI credit allowances.</p>
+              <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4 border-b border-zinc-800 pb-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider">Subscription & Quota</h3>
+                    <p className="text-xs text-zinc-500 mt-0.5">Your monthly posting and AI credit allowances.</p>
+                  </div>
+                  <span className="text-xs uppercase font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                    {userPlan} PLAN
+                  </span>
                 </div>
-                <span className="text-xs uppercase font-bold px-3 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  {userPlan} PLAN
-                </span>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
+                    <span className="text-xs text-zinc-500">AI Generation Credits</span>
+                    <p className="text-lg font-bold text-zinc-200 mt-1">
+                      {userProfile?.subscription?.aiCreditsRemaining ?? 10} <span className="text-xs font-normal text-zinc-500">credits left</span>
+                    </p>
+                  </div>
+                  <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
+                    <span className="text-xs text-zinc-500">LinkedIn Usage This Cycle</span>
+                    <p className="text-lg font-bold text-zinc-200 mt-1">
+                      {userProfile?.subscription?.linkedinPostsThisMonth ?? 0} <span className="text-xs font-normal text-zinc-500">{getLinkedinLimitText()}</span>
+                    </p>
+                  </div>
+                </div>
               </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
-                  <span className="text-xs text-zinc-500">AI Generation Credits</span>
-                  <p className="text-lg font-bold text-zinc-200 mt-1">
-                    {userProfile?.subscription?.aiCreditsRemaining ?? 10} <span className="text-xs font-normal text-zinc-500">credits left</span>
-                  </p>
-                </div>
-                <div className="bg-[#151515] border border-zinc-800 p-4 rounded-lg">
-                  <span className="text-xs text-zinc-500">LinkedIn Usage This Cycle</span>
-                  <p className="text-lg font-bold text-zinc-200 mt-1">
-                    {userProfile?.subscription?.linkedinPostsThisMonth ?? 0} <span className="text-xs font-normal text-zinc-500">{getLinkedinLimitText()}</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-              {/* Profile Information */}
+
               <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                 <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Profile Information</h3>
                 <div className="space-y-4">
@@ -806,15 +828,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 </div>
               </div>
 
-              {/* Security / Password Section */}
               <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                 <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Security</h3>
                 
                 {!isChangingPassword ? (
-                  <button 
-                    onClick={() => { setIsChangingPassword(true); handleRequestPasswordChange(); }}
-                    className="bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center justify-between w-full md:w-auto"
-                  >
+                  <button onClick={() => { setIsChangingPassword(true); handleRequestPasswordChange(); }} className="bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors flex items-center justify-between w-full md:w-auto">
                     Change Password (via Email OTP)
                   </button>
                 ) : (
@@ -830,41 +848,18 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-xs text-zinc-500 mb-1">6-Digit OTP</label>
-                            <input 
-                              type="text" 
-                              value={resetOtp}
-                              onChange={(e) => setResetOtp(e.target.value)}
-                              maxLength={6}
-                              placeholder="123456"
-                              required
-                              className="w-full bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm focus:outline-none focus:border-indigo-500 tracking-widest font-mono"
-                            />
+                            <input type="text" value={resetOtp} onChange={(e) => setResetOtp(e.target.value)} maxLength={6} placeholder="123456" required className="w-full bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm focus:outline-none focus:border-indigo-500 tracking-widest font-mono" />
                           </div>
                           <div>
                             <label className="block text-xs text-zinc-500 mb-1">New Password</label>
-                            <input 
-                              type="password" 
-                              value={newPassword}
-                              onChange={(e) => setNewPassword(e.target.value)}
-                              placeholder="••••••••"
-                              required
-                              className="w-full bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm focus:outline-none focus:border-indigo-500"
-                            />
+                            <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" required className="w-full bg-[#151515] border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-300 text-sm focus:outline-none focus:border-indigo-500" />
                           </div>
                         </div>
                         <div className="flex gap-3 mt-2">
-                          <button 
-                            type="submit"
-                            disabled={isLoading || resetOtp.length !== 6 || !newPassword}
-                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-                          >
+                          <button type="submit" disabled={isLoading || resetOtp.length !== 6 || !newPassword} className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-sm px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
                             {isLoading ? 'Updating...' : 'Update Password'}
                           </button>
-                          <button 
-                            type="button"
-                            onClick={() => { setIsChangingPassword(false); setPasswordStep(1); }}
-                            className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-sm px-4 py-2 rounded-lg transition-colors"
-                          >
+                          <button type="button" onClick={() => { setIsChangingPassword(false); setPasswordStep(1); }} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-sm px-4 py-2 rounded-lg transition-colors">
                             Cancel
                           </button>
                         </div>
@@ -874,7 +869,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 )}
               </div>
 
-              {/* Linked Social Accounts */}
               <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                 <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-2">Connected Networks</h3>
                 <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
@@ -882,7 +876,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 </p>
                 <div className="space-y-3">
                   
-                  {/* LinkedIn Connection Card */}
                   <div className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${linkedAccounts.linkedin ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
@@ -891,15 +884,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         <p className="text-[11px] text-zinc-500">Live feed posting & image uploads enabled</p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => handleConnectionClick('linkedin')}
-                      className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${linkedAccounts.linkedin ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-[#0077b5] hover:bg-[#006396] text-white shadow-[0_0_10px_rgba(0,119,181,0.3)]'}`}
-                    >
+                    <button onClick={() => handleConnectionClick('linkedin')} className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${linkedAccounts.linkedin ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : 'bg-[#0077b5] hover:bg-[#006396] text-white shadow-[0_0_10px_rgba(0,119,181,0.3)]'}`}>
                       {linkedAccounts.linkedin ? 'Disconnect' : 'Connect'}
                     </button>
                   </div>
 
-                  {/* Twitter / X Connection Card */}
                   <div className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4">
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full ${linkedAccounts.twitter ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-zinc-700'}`}></div>
@@ -910,21 +899,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
                         </p>
                       </div>
                     </div>
-                    <button 
-                      onClick={() => handleConnectionClick('twitter')}
-                      className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${
-                        linkedAccounts.twitter 
-                          ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' 
-                          : userPlan === 'free'
-                          ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
-                          : 'bg-zinc-100 hover:bg-white text-zinc-950 shadow-[0_0_10px_rgba(255,255,255,0.2)]'
-                      }`}
-                    >
+                    <button onClick={() => handleConnectionClick('twitter')} className={`text-xs font-semibold px-4 py-2 rounded-md transition-all ${linkedAccounts.twitter ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300' : userPlan === 'free' ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' : 'bg-zinc-100 hover:bg-white text-zinc-950 shadow-[0_0_10px_rgba(255,255,255,0.2)]'}`}>
                       {linkedAccounts.twitter ? 'Disconnect' : userPlan === 'free' ? 'Unlock Plan' : 'Connect'}
                     </button>
                   </div>
 
-                  {/* Instagram Connection Card */}
                   <div className="flex items-center justify-between bg-[#151515] border border-zinc-800 rounded-lg p-4 opacity-60">
                     <div className="flex items-center gap-3">
                       <div className="w-2 h-2 rounded-full bg-zinc-700"></div>
@@ -941,28 +920,20 @@ const Dashboard = ({ setIsAuthenticated }) => {
                 </div>
               </div>
 
-              {/* Session Actions */}
               <div className="bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-6">
                 <h3 className="text-sm font-semibold text-zinc-200 uppercase tracking-wider mb-4">Session</h3>
-                <button 
-                  onClick={handleLogout} 
-                  className="w-full bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors text-left flex items-center justify-between"
-                >
+                <button onClick={handleLogout} className="w-full bg-[#151515] hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 font-medium text-sm px-4 py-2.5 rounded-lg transition-colors text-left flex items-center justify-between">
                   Log Out of Current Session
                   <svg className="w-4 h-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                 </button>
               </div>
 
-              {/* Danger Zone */}
               <div className="bg-red-950/10 border border-red-900/30 rounded-xl overflow-hidden shadow-lg p-6">
                 <h3 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-2">Danger Zone</h3>
                 <p className="text-xs text-zinc-400 mb-5 leading-relaxed">
                   Permanently remove your account and all associated post data. This action is irreversible. 
                 </p>
-                <button 
-                  onClick={handleDeleteAccount}
-                  className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-semibold text-sm px-6 py-2.5 rounded-lg transition-all w-full md:w-auto"
-                >
+                <button onClick={handleDeleteAccount} className="bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 font-semibold text-sm px-6 py-2.5 rounded-lg transition-all w-full md:w-auto">
                   Delete Account
                 </button>
               </div>
