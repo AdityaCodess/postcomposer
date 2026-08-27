@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import FilerobotImageEditor, { TABS, TOOLS } from 'react-filerobot-image-editor';
+import Cropper from 'react-easy-crop';
+import getCroppedImg from '../utils/cropImage';
 
 const Dashboard = ({ setIsAuthenticated }) => {
   const [activeTab, setActiveTab] = useState('compose'); 
@@ -8,9 +9,13 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [platform, setPlatform] = useState('linkedin');
   const [mediaPreview, setMediaPreview] = useState(null);
   
-  // Advanced Media Editor States
+  // Custom Media Editor States
   const [imageToEdit, setImageToEdit] = useState(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [rotation, setRotation] = useState(0);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   
   const [showAI, setShowAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
@@ -121,6 +126,9 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
+  // ----------------------------------------------------
+  // MEDIA EDITOR LOGIC
+  // ----------------------------------------------------
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
       setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused.' });
@@ -139,10 +147,39 @@ const Dashboard = ({ setIsAuthenticated }) => {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const onCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
+
+  const applyCrop = async () => {
+    try {
+      // Call our custom canvas utility
+      const croppedImageBase64 = await getCroppedImg(imageToEdit, croppedAreaPixels, rotation);
+      setMediaPreview(croppedImageBase64);
+      setShowEditor(false);
+      setImageToEdit(null);
+      setZoom(1);
+      setRotation(0);
+    } catch (e) {
+      console.error(e);
+      setStatus({ type: 'error', message: 'Failed to apply crop.' });
+    }
+  };
+
+  const cancelCrop = () => {
+    setShowEditor(false);
+    setImageToEdit(null);
+    setZoom(1);
+    setRotation(0);
+  };
+
   const clearMedia = () => {
     setMediaPreview(null);
   };
 
+  // ----------------------------------------------------
+  // COMPOSER LOGIC
+  // ----------------------------------------------------
   const resetComposer = () => {
     setContent('');
     setPlatform('linkedin');
@@ -852,64 +889,50 @@ const Dashboard = ({ setIsAuthenticated }) => {
         </div>
       </main>
 
-      {/* PORTAL LEVEL EDITOR OVERLAY (FIXES Z-INDEX OVERLAP) */}
+      {/* React Easy Crop Modal Overlay */}
       {showEditor && imageToEdit && (
         <div className="fixed inset-0 z-[9999] bg-black/95 flex flex-col items-center justify-center p-4 sm:p-8 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="w-full h-full max-w-6xl max-h-[85vh] flex flex-col bg-[#111] border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
+          <div className="w-full max-w-4xl flex flex-col bg-[#111] border border-zinc-800 rounded-2xl overflow-hidden shadow-2xl">
             
-            {/* Custom Explicit Header */}
             <div className="h-16 px-6 bg-[#151515] border-b border-zinc-800 flex items-center justify-between shrink-0">
               <h3 className="text-zinc-100 font-semibold flex items-center gap-2">
                 <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                 Postifye Studio
               </h3>
-              <button 
-                onClick={() => { setShowEditor(false); setImageToEdit(null); }} 
-                className="text-zinc-400 hover:text-red-400 font-medium text-sm transition-colors"
-              >
-                Cancel Editing
+              <button onClick={cancelCrop} className="text-zinc-400 hover:text-red-400 font-medium text-sm transition-colors">
+                Cancel
               </button>
             </div>
 
-            {/* Constrained Editor Viewport */}
-            <div className="flex-1 relative w-full h-full">
-              <FilerobotImageEditor
-                source={imageToEdit}
-                onSave={(editedImageObject) => {
-                  setMediaPreview(editedImageObject.imageBase64);
-                  setShowEditor(false);
-                  setImageToEdit(null);
-                }}
-                annotationsCommon={{ fill: '#ffffff' }}
-                Text={{ text: 'Add text here...' }}
-                tabsIds={[TABS.ADJUST, TABS.ANNOTATE, TABS.WATERMARK, TABS.FILTERS, TABS.FINETUNE, TABS.RESIZE]}
-                defaultTabId={TABS.ADJUST}
-                defaultToolId={TOOLS.CROP}
-                savingPixelRatio={1}
-                previewPixelRatio={1}
-                translations={{
-                  save: 'Apply & Attach', // Explicitly renames the native Save button
-                }}
-                theme={{
-                  typography: { fontFamily: 'inherit' },
-                  palette: {
-                    'bg-primary-active': '#4f46e5',
-                    'bg-active': '#4f46e5',
-                    'accent-primary': '#4f46e5',
-                    'accent-primary-hover': '#4338ca',
-                    'accent-primary-active': '#4338ca',
-                    'icons-primary': '#e4e4e7',
-                    'icons-secondary': '#a1a1aa',
-                    'bg-secondary': '#151515',
-                    'bg-primary': '#0A0A0A',
-                    'borders-primary': '#27272a',
-                    'borders-secondary': '#27272a',
-                    'txt-primary': '#f4f4f5',
-                    'txt-secondary': '#a1a1aa',
-                    'txt-primary-invert': '#111111',
-                  }
-                }}
+            <div className="relative w-full h-[50vh] sm:h-[60vh] bg-[#0A0A0A]">
+              <Cropper
+                image={imageToEdit}
+                crop={crop}
+                zoom={zoom}
+                rotation={rotation}
+                aspect={4 / 5}
+                onCropChange={setCrop}
+                onCropComplete={onCropComplete}
+                onZoomChange={setZoom}
+                onRotationChange={setRotation}
               />
+            </div>
+
+            <div className="p-6 bg-[#151515] border-t border-zinc-800 flex flex-col sm:flex-row gap-6 items-center justify-between">
+              <div className="flex-1 w-full flex flex-col sm:flex-row gap-6">
+                <div className="flex-1 flex items-center gap-3">
+                  <span className="text-xs text-zinc-400 font-medium w-12">Zoom</span>
+                  <input type="range" value={zoom} min={1} max={3} step={0.1} onChange={(e) => setZoom(e.target.value)} className="w-full accent-indigo-500 cursor-pointer" />
+                </div>
+                <div className="flex-1 flex items-center gap-3">
+                  <span className="text-xs text-zinc-400 font-medium w-12">Rotate</span>
+                  <input type="range" value={rotation} min={0} max={360} step={1} onChange={(e) => setRotation(e.target.value)} className="w-full accent-indigo-500 cursor-pointer" />
+                </div>
+              </div>
+              
+              <button onClick={applyCrop} className="w-full sm:w-auto px-6 py-2.5 text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg transition-colors shadow-lg shadow-indigo-500/20 whitespace-nowrap">
+                Apply & Attach
+              </button>
             </div>
 
           </div>

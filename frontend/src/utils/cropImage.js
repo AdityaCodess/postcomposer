@@ -1,4 +1,3 @@
-// frontend/src/utils/cropImage.js
 export const createImage = (url) =>
   new Promise((resolve, reject) => {
     const image = new Image();
@@ -8,30 +7,39 @@ export const createImage = (url) =>
     image.src = url;
   });
 
-export default async function getCroppedImg(imageSrc, pixelCrop) {
+export function getRadianAngle(degreeValue) {
+  return (degreeValue * Math.PI) / 180;
+}
+
+export default async function getCroppedImg(imageSrc, pixelCrop, rotation = 0) {
   const image = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  const safeArea = Math.max(image.width, image.height) * 2;
+  canvas.width = safeArea;
+  canvas.height = safeArea;
+ 
+  ctx.translate(safeArea / 2, safeArea / 2);
+  ctx.rotate(getRadianAngle(rotation));
+  ctx.translate(-safeArea / 2, -safeArea / 2);
 
-  if (!ctx) {
-    return null;
-  }
+  ctx.drawImage(
+    image,
+    safeArea / 2 - image.width / 2,
+    safeArea / 2 - image.height / 2
+  );
+
+  const data = ctx.getImageData(0, 0, safeArea, safeArea);
 
   canvas.width = pixelCrop.width;
   canvas.height = pixelCrop.height;
 
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height
+  ctx.putImageData(
+    data,
+    Math.round(0 - safeArea / 2 + image.width / 2 - pixelCrop.x),
+    Math.round(0 - safeArea / 2 + image.height / 2 - pixelCrop.y)
   );
 
-  // Return as a Base64 string so it drops right into our existing mediaPreview state
   return canvas.toDataURL('image/jpeg');
 }
