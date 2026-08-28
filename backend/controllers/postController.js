@@ -436,10 +436,45 @@ const deletePost = async (req, res) => {
     res.status(500).json({ success: false, message: 'Failed to delete post' });
   }
 };
+// Get User Analytics
+const getAnalytics = async (req, res) => {
+  try {
+    const posts = await Post.find({ user: req.user.id });
+
+    // Basic Aggregation
+    const totalPosts = posts.length;
+    const published = posts.filter(p => p.status === 'published').length;
+    const scheduled = posts.filter(p => p.status === 'scheduled').length;
+    
+    // Platform Breakdown
+    const linkedinCount = posts.filter(p => p.platform === 'linkedin').length;
+    const twitterCount = posts.filter(p => p.platform === 'twitter').length;
+
+    // Generate mock engagement trend data (Last 7 Days)
+    // In a production app, you would fetch real stats from LinkedIn/Twitter APIs here
+    const chartData = [...Array(7)].map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return {
+        name: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        impressions: Math.floor(Math.random() * 500) + 100,
+        engagement: Math.floor(Math.random() * 50) + 10
+      };
+    });
+
+    res.status(200).json({ 
+      success: true, 
+      data: { totalPosts, published, scheduled, linkedinCount, twitterCount, chartData } 
+    });
+  } catch (error) {
+    console.error("Analytics Error:", error);
+    res.status(500).json({ success: false, message: 'Failed to fetch analytics' });
+  }
+};
 
 module.exports = { 
   getPosts, createPost, linkConnection, 
   twitterCallback, linkedinCallback, 
   disconnectConnection, getMe, deleteAccount, 
-  updatePost, deletePost, generateAIPost 
+  updatePost, deletePost, generateAIPost, getAnalytics
 };

@@ -12,7 +12,8 @@ const {
   deleteAccount, 
   updatePost, 
   deletePost,
-  generateAIPost
+  generateAIPost,
+  getAnalytics
 } = require('../controllers/postController');
 
 const { protect } = require('../middleware/authMiddleware');
@@ -26,13 +27,12 @@ router.route('/')
 router.post('/generate', protect, generateAIPost);
 
 // OAuth Connection Routes
-// NOTE: /link and /callback do NOT use the protect middleware because they are browser redirects.
 // Token validation is handled manually inside the controller for these specific routes.
 router.get('/connections/:platform/link', linkConnection);
 router.get('/connections/twitter/callback', twitterCallback);
 router.get('/connections/linkedin/callback', linkedinCallback);
 router.post('/connections/disconnect', protect, disconnectConnection);
-
+router.get('/analytics', protect, getAnalytics);
 // User Profile & Account Management
 router.route('/me')
   .get(protect, getMe)

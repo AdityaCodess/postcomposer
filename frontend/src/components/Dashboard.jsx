@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../utils/cropImage';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Helper to dynamically load the Razorpay script
 const loadRazorpay = () => {
@@ -19,6 +20,15 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [content, setContent] = useState('');
   const [platform, setPlatform] = useState('linkedin');
   const [mediaPreview, setMediaPreview] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const fetchAnalytics = async () => {
+  try {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts/analytics`, getAuthConfig());
+    if (res.data.success) setAnalyticsData(res.data.data);
+  } catch (err) {
+    console.error('Failed to fetch analytics');
+  }
+};
   
   // Custom Media Editor States
   const [imageToEdit, setImageToEdit] = useState(null);
@@ -79,6 +89,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       window.history.replaceState({}, document.title, window.location.pathname);
       setActiveTab('settings');
     }
+    if (activeTab === 'analytics') fetchAnalytics();
 
     fetchUserData();
     fetchPosts();
@@ -462,6 +473,10 @@ const Dashboard = ({ setIsAuthenticated }) => {
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Post History
           </button>
+          <button onClick={() => setActiveTab('analytics')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'analytics' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            Analytics
+          </button>
 
           <button onClick={() => setActiveTab('billing')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'billing' ? 'bg-indigo-900/30 text-indigo-400 font-medium border border-indigo-500/30' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -610,7 +625,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                       </button>
 
                       <span className="text-xs font-mono text-indigo-400/80 bg-indigo-500/10 border border-indigo-500/20 px-2 py-1 rounded-md ml-1 whitespace-nowrap">
-                        ✨ {userProfile?.subscription?.aiCreditsRemaining ?? 10} left
+                        {userProfile?.subscription?.aiCreditsRemaining ?? 10} left
                       </span>
 
                       {(content || mediaPreview) && (
@@ -839,6 +854,69 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   <button onClick={() => handleUpgrade('pro')} disabled={isLoading} className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors disabled:opacity-50">
                     {isLoading ? 'Processing...' : 'Upgrade to Pro'}
                   </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3.5: Analytics */}
+          {activeTab === 'analytics' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-300 h-full flex flex-col space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-zinc-100">Performance Overview</h2>
+                <button onClick={fetchAnalytics} className="text-xs flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 px-3 py-1.5 rounded-lg border border-zinc-800 transition-colors">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                  Refresh Data
+                </button>
+              </div>
+
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[#111] border border-zinc-800/80 p-5 rounded-xl shadow-lg">
+                  <span className="text-xs text-zinc-500 font-medium">Total Posts</span>
+                  <p className="text-2xl font-bold text-zinc-200 mt-1">{analyticsData?.totalPosts || 0}</p>
+                </div>
+                <div className="bg-[#111] border border-zinc-800/80 p-5 rounded-xl shadow-lg">
+                  <span className="text-xs text-emerald-500/80 font-medium">Published</span>
+                  <p className="text-2xl font-bold text-zinc-200 mt-1">{analyticsData?.published || 0}</p>
+                </div>
+                <div className="bg-[#111] border border-zinc-800/80 p-5 rounded-xl shadow-lg">
+                  <span className="text-xs text-indigo-400/80 font-medium">Scheduled Queue</span>
+                  <p className="text-2xl font-bold text-zinc-200 mt-1">{analyticsData?.scheduled || 0}</p>
+                </div>
+                <div className="bg-[#111] border border-zinc-800/80 p-5 rounded-xl shadow-lg flex flex-col justify-center gap-2">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-zinc-500">LinkedIn</span>
+                    <span className="text-zinc-300 font-semibold">{analyticsData?.linkedinCount || 0}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-zinc-500">Twitter</span>
+                    <span className="text-zinc-300 font-semibold">{analyticsData?.twitterCount || 0}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Chart */}
+              <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl shadow-lg p-6 min-h-[300px] flex flex-col">
+                <h3 className="text-sm font-semibold text-zinc-200 mb-6">7-Day Engagement Trend</h3>
+                <div className="flex-1 w-full relative">
+                  {analyticsData?.chartData ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={analyticsData.chartData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
+                        <XAxis dataKey="name" stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#52525b" fontSize={12} tickLine={false} axisLine={false} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#151515', borderColor: '#27272a', borderRadius: '8px' }}
+                          itemStyle={{ color: '#e4e4e7' }}
+                        />
+                        <Line type="monotone" dataKey="impressions" stroke="#4f46e5" strokeWidth={2} dot={{ fill: '#111', stroke: '#4f46e5', strokeWidth: 2, r: 4 }} activeDot={{ r: 6 }} />
+                        <Line type="monotone" dataKey="engagement" stroke="#10b981" strokeWidth={2} dot={false} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-600">Loading chart data...</div>
+                  )}
                 </div>
               </div>
             </div>
