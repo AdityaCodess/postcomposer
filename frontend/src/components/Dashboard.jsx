@@ -3,6 +3,17 @@ import axios from 'axios';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../utils/cropImage';
 
+// Helper to dynamically load the Razorpay script
+const loadRazorpay = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
 const Dashboard = ({ setIsAuthenticated }) => {
   const [activeTab, setActiveTab] = useState('compose'); 
   const [content, setContent] = useState('');
@@ -129,6 +140,78 @@ const Dashboard = ({ setIsAuthenticated }) => {
     setIsAuthenticated(false);
   };
 
+  // ----------------------------------------------------
+  // PAYMENT GATEWAY LOGIC
+  // ----------------------------------------------------
+  const handleUpgrade = async (plan) => {
+    setIsLoading(true);
+    const res = await loadRazorpay();
+
+    if (!res) {
+      setStatus({ type: 'error', message: 'Razorpay SDK failed to load. Check your connection.' });
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Create order on backend
+      const orderResponse = await axios.post(`${import.meta.env.VITE_API_URL}/billing/create-order`, {
+        plan,
+        isAnnual
+      }, getAuthConfig());
+
+      if (!orderResponse.data.success) throw new Error('Order creation failed');
+
+      const { data: orderData, key } = orderResponse.data;
+
+      // 2. Open Razorpay modal
+      const options = {
+        key: key,
+        amount: orderData.amount,
+        currency: orderData.currency,
+        name: "Postifye",
+        description: `Upgrade to ${plan.toUpperCase()} Plan`,
+        image: "/postifye.svg",
+        order_id: orderData.id,
+        handler: async function (response) {
+          try {
+            // 3. Verify payment on backend
+            const verifyRes = await axios.post(`${import.meta.env.VITE_API_URL}/billing/verify`, {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              plan
+            }, getAuthConfig());
+
+            if (verifyRes.data.success) {
+              setStatus({ type: 'success', message: 'Account upgraded successfully! Welcome to the new tier.' });
+              fetchUserData(); // Refresh quotas
+            }
+          } catch (err) {
+            setStatus({ type: 'error', message: 'Payment verification failed. Please contact support.' });
+          }
+        },
+        prefill: {
+          name: userProfile?.username,
+          email: userProfile?.email,
+        },
+        theme: {
+          color: "#4f46e5" // Indigo 600
+        }
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+
+    } catch (error) {
+      setStatus({ type: 'error', message: 'Something went wrong initiating the payment.' });
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => setStatus({ type: '', message: '' }), 4000);
+    }
+  };
+
+  // ... (Keep all your other existing functions: handleMediaUpload, applyCrop, handlePublish, handleAIGenerate, etc.)
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
       setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused.' });
@@ -265,7 +348,6 @@ const Dashboard = ({ setIsAuthenticated }) => {
     
     setIsGenerating(true);
     try {
-      // SENDING TONE AND PRESET TO BACKEND
       const res = await axios.post(`${import.meta.env.VITE_API_URL}/posts/generate`, { 
         platform, 
         topic: aiPrompt,
@@ -733,8 +815,8 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 150 Twitter Posts / mo</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 1,000 AI Credits / mo</li>
                   </ul>
-                  <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-lg shadow-indigo-500/20">
-                    Upgrade to Creator
+                  <button onClick={() => handleUpgrade('creator')} disabled={isLoading} className="w-full py-2.5 rounded-lg font-semibold text-sm bg-indigo-600 hover:bg-indigo-500 text-white transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+                    {isLoading ? 'Processing...' : 'Upgrade to Creator'}
                   </button>
                 </div>
 
@@ -754,8 +836,8 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> 30,000 AI Credits / mo</li>
                     <li className="flex items-center gap-2"><svg className="w-4 h-4 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Unlimited Connected Profiles</li>
                   </ul>
-                  <button className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors">
-                    Upgrade to Pro
+                  <button onClick={() => handleUpgrade('pro')} disabled={isLoading} className="w-full py-2.5 rounded-lg font-semibold text-sm bg-zinc-200 hover:bg-white text-zinc-900 transition-colors disabled:opacity-50">
+                    {isLoading ? 'Processing...' : 'Upgrade to Pro'}
                   </button>
                 </div>
               </div>
