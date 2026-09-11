@@ -1227,7 +1227,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
             setMediaPreview(processedVideoUrl);
             setShowVideoEditor(false);
             setVideoToEdit(null);
-            setActiveTab('compose'); // <--- Auto redirect to publishing tab!
+            setActiveTab('compose'); 
           }}
         />
       )}
