@@ -32,13 +32,14 @@ const VideoStudio = ({ file, onCancel, onComplete }) => {
     ffmpeg.on('log', ({ message }) => console.log('FFmpeg:', message));
 
     try {
-      // Point directly to the files you downloaded into the public/ffmpeg folder
-      const baseURL = window.location.origin + '/ffmpeg';
+      // Switch from UMD to ESM so Vite's modern import() can read it
+      const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
       
       await ffmpeg.load({
         coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
         wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
       });
+      
       setLoaded(true);
       setStatusText('Engine Ready');
     } catch (error) {
