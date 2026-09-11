@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
 import getCroppedImg from '../utils/cropImage';
+import VideoSS from './VideoStudio';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 // Helper to dynamically load the Razorpay script
@@ -21,14 +22,19 @@ const Dashboard = ({ setIsAuthenticated }) => {
   const [platform, setPlatform] = useState('linkedin');
   const [mediaPreview, setMediaPreview] = useState(null);
   const [analyticsData, setAnalyticsData] = useState(null);
+  
   const fetchAnalytics = async () => {
-  try {
-    const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts/analytics`, getAuthConfig());
-    if (res.data.success) setAnalyticsData(res.data.data);
-  } catch (err) {
-    console.error('Failed to fetch analytics');
-  }
-};
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/posts/analytics`, getAuthConfig());
+      if (res.data.success) setAnalyticsData(res.data.data);
+    } catch (err) {
+      console.error('Failed to fetch analytics');
+    }
+  };
+
+  // Video Editor States
+  const [videoToEdit, setVideoToEdit] = useState(null);
+  const [showVideoEditor, setShowVideoEditor] = useState(false);
   
   // Custom Media Editor States
   const [imageToEdit, setImageToEdit] = useState(null);
@@ -89,6 +95,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       window.history.replaceState({}, document.title, window.location.pathname);
       setActiveTab('settings');
     }
+    
     if (activeTab === 'analytics') fetchAnalytics();
 
     fetchUserData();
@@ -222,15 +229,20 @@ const Dashboard = ({ setIsAuthenticated }) => {
     }
   };
 
-  // ... (Keep all your other existing functions: handleMediaUpload, applyCrop, handlePublish, handleAIGenerate, etc.)
   const handleMediaUpload = (e) => {
     if (platform === 'twitter') {
       setStatus({ type: 'error', message: 'Twitter media uploads are temporarily paused.' });
       setTimeout(() => setStatus({ type: '', message: '' }), 4000);
       return;
     }
+    
     const file = e.target.files[0];
-    if (file) {
+    if (!file) return;
+
+    if (file.type.startsWith('video/')) {
+      setVideoToEdit(file);
+      setShowVideoEditor(true);
+    } else if (file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onloadend = () => {
         setImageToEdit(reader.result);
@@ -238,6 +250,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
       };
       reader.readAsDataURL(file);
     }
+    
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -469,6 +482,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
             Composer {isEditing && <span className="ml-auto w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>}
           </button>
           
+          <button onClick={() => setActiveTab('video-studio')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'video-studio' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            Video Studio
+          </button>
+          
           <button onClick={() => setActiveTab('history')} className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-all ${activeTab === 'history' ? 'bg-zinc-800/50 text-zinc-100 font-medium border border-zinc-700/50' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900/50'}`}>
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Post History
@@ -594,7 +612,11 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   {mediaPreview && (
                     <div className="px-6 pb-4">
                       <div className="relative inline-block border border-zinc-800 rounded-lg overflow-hidden group shadow-lg">
-                        <img src={mediaPreview} alt="Upload preview" className="h-32 w-auto object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                        {mediaPreview.startsWith('blob:') ? (
+                          <video src={mediaPreview} className="h-32 w-auto object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                        ) : (
+                          <img src={mediaPreview} alt="Upload preview" className="h-32 w-auto object-cover opacity-90 group-hover:opacity-100 transition-opacity" />
+                        )}
                         <button onClick={clearMedia} className="absolute top-2 right-2 bg-black/60 hover:bg-red-500/80 text-white rounded-full p-1.5 backdrop-blur-md transition-colors">
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                         </button>
@@ -605,7 +627,7 @@ const Dashboard = ({ setIsAuthenticated }) => {
                   {/* Toolbar */}
                   <div className="px-4 py-3 border-t border-zinc-800/80 bg-[#0A0A0A]/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <input type="file" accept="image/*" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
+                      <input type="file" accept="image/*,video/mp4,video/quicktime" ref={fileInputRef} onChange={handleMediaUpload} className="hidden" />
                       <button 
                         onClick={() => {
                           if (platform === 'twitter') {
@@ -713,12 +735,65 @@ const Dashboard = ({ setIsAuthenticated }) => {
                     </div>
                     {mediaPreview && (
                       <div className="border-t border-zinc-800">
-                        <img src={mediaPreview} alt="Live preview" className="w-full h-auto object-cover max-h-60" />
+                        {/* Render based on whether preview is a video blob or image base64 */}
+                        {mediaPreview.startsWith('blob:') ? (
+                          <video src={mediaPreview} controls className="w-full h-auto object-cover max-h-60" />
+                        ) : (
+                          <img src={mediaPreview} alt="Live preview" className="w-full h-auto object-cover max-h-60" />
+                        )}
                       </div>
                     )}
                   </div>
                 </div>
               </section>
+            </div>
+          )}
+
+          {/* TAB 1.5: Dedicated Video Studio */}
+          {activeTab === 'video-studio' && (
+            <div className="h-full flex flex-col animate-in fade-in duration-300">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-semibold text-zinc-100">Video Studio</h2>
+                  <p className="text-sm text-zinc-500 mt-1">Hardware-accelerated browser editing powered by FFmpeg.wasm</p>
+                </div>
+                <span className="text-xs font-mono font-semibold px-3 py-1 bg-indigo-500/10 text-indigo-400 rounded border border-indigo-500/20">
+                  BETA
+                </span>
+              </div>
+              
+              <div className="flex-1 bg-[#111] border border-zinc-800/80 rounded-xl overflow-hidden shadow-lg p-10 flex flex-col items-center justify-center text-center">
+                <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mb-6 border border-indigo-500/20 shadow-[0_0_30px_rgba(79,70,229,0.15)]">
+                  <svg className="w-10 h-10 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z" /></svg>
+                </div>
+                
+                <h3 className="text-xl font-medium text-zinc-200 mb-3">Drop a video to get started</h3>
+                <p className="text-sm text-zinc-500 max-w-md mb-8 leading-relaxed">
+                  Trim, crop, and format your massive video files entirely in your local browser memory. We save your bandwidth by never sending raw files to our servers.
+                </p>
+                
+                <input 
+                  type="file" 
+                  accept="video/mp4,video/quicktime,video/x-m4v,video/*" 
+                  id="dedicated-video-upload"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      setVideoToEdit(file);
+                      setShowVideoEditor(true);
+                    }
+                    e.target.value = '';
+                  }}
+                />
+                <label 
+                  htmlFor="dedicated-video-upload"
+                  className="cursor-pointer px-8 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-lg shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_25px_rgba(79,70,229,0.4)] transition-all flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  Select Video File
+                </label>
+              </div>
             </div>
           )}
 
@@ -1138,6 +1213,23 @@ const Dashboard = ({ setIsAuthenticated }) => {
 
           </div>
         </div>
+      )}
+
+      {/* Video Studio WASM Modal Overlay */}
+      {showVideoEditor && videoToEdit && (
+        <VideoSS 
+          file={videoToEdit} 
+          onCancel={() => {
+            setShowVideoEditor(false);
+            setVideoToEdit(null);
+          }}
+          onComplete={(processedVideoUrl) => {
+            setMediaPreview(processedVideoUrl);
+            setShowVideoEditor(false);
+            setVideoToEdit(null);
+            setActiveTab('compose'); // <--- Auto redirect to publishing tab!
+          }}
+        />
       )}
 
     </div>
